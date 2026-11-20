@@ -28,6 +28,7 @@ import { getRoleLabel } from '../utils/format';
 import {
   downloadTextFile,
   generateCurrentStoreSeedSql,
+  getSupabaseEmployeeMigrationSql,
   getSupabaseSchemaSql,
   getSupabaseStorageRlsSql,
 } from '../utils/supabaseSqlGenerator';
@@ -50,10 +51,8 @@ interface UserFormState {
 
 const DEFAULT_SECTIONS = [
   'HR Development',
-  'HR Adm. & Operation',
+  'Administration & Operation',
   'Human Resources',
-  'Industrial Relations & HR Services',
-  'People & Organization Development',
 ];
 
 function buildInitials(name: string): string {
@@ -697,7 +696,7 @@ export const SettingsPage: React.FC = () => {
                 Draft Database &amp; Kesiapan Integrasi Supabase (PostgreSQL + Storage)
               </h3>
               <p className="text-xs text-neutral-500 mt-1 max-w-3xl leading-relaxed">
-                Struktur database mencakup keseluruhan data HR SupplyHub: <strong>18 tabel relasional PostgreSQL</strong> (akun pengguna &amp; re-organisasi, master item, transaksi, stock opname, inventaris overhead &amp; mutasi, permintaan barang, rolling forecast GA FY2026, template &amp; laporan bulanan A3, arsip dokumen, notifikasi, audit trail) serta <strong>2 Storage Bucket (<code className="font-mono-num">supplyhub-media</code> &amp; <code className="font-mono-num">supplyhub-documents</code>)</strong> untuk foto barang, tanda tangan, dan arsip dokumen PDF/Excel/Word.
+                Struktur database mencakup keseluruhan data HR SupplyHub: <strong>19 tabel relasional PostgreSQL</strong> (akun pengguna &amp; re-organisasi, database karyawan HR, pengambilan &amp; approval barang, master item, transaksi, stock opname, inventaris overhead &amp; mutasi, rolling forecast GA FY2026, template &amp; laporan bulanan A3, arsip dokumen, notifikasi, audit trail) serta <strong>2 Storage Bucket (<code className="font-mono-num">supplyhub-media</code> &amp; <code className="font-mono-num">supplyhub-documents</code>)</strong> untuk foto barang, tanda tangan, dan arsip dokumen PDF/Excel/Word.
               </p>
             </div>
             {isSupabaseConnected && (
@@ -716,9 +715,9 @@ export const SettingsPage: React.FC = () => {
           <div className="grid sm:grid-cols-3 gap-3 text-xs">
             <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
               <div className="text-[11px] font-semibold text-neutral-500">Cakupan Tabel Inti</div>
-              <div className="font-bold text-sm font-mono-num">18 Tabel Relasional</div>
+              <div className="font-bold text-sm font-mono-num">19 Tabel Relasional</div>
               <p className="text-[11px] text-neutral-500">
-                Akun ({store.users.length}), Master Item ({store.items.length}), RF GA ({store.rollingForecast.rows.length}), Laporan ({store.reports.length}), Dokumen ({(store.documents || []).length}).
+                Akun ({store.users.length}), Karyawan HR ({(store.employees || []).length}), Item ({store.items.length}), RF GA ({store.rollingForecast.rows.length}), Dokumen ({(store.documents || []).length}).
               </p>
             </div>
             <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
@@ -763,9 +762,20 @@ export const SettingsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => {
+                downloadTextFile('03_migration_hr_employees.sql', getSupabaseEmployeeMigrationSql());
+                toast('03_migration_hr_employees.sql berhasil diunduh', 'success');
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#C9A24B]/60 bg-[#C9A24B]/10 hover:border-[#E60012] text-xs font-semibold transition"
+            >
+              <Users className="w-3.5 h-3.5 text-[#9A7422]" />
+              Unduh Migrasi Karyawan HR (.sql)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
                 const seedSql = generateCurrentStoreSeedSql(store);
                 downloadTextFile(
-                  `03_seed_hr_supplyhub_${new Date().toISOString().slice(0, 10)}.sql`,
+                  `04_seed_hr_supplyhub_${new Date().toISOString().slice(0, 10)}.sql`,
                   seedSql
                 );
                 toast('SQL Seed Data Terkini berhasil diunduh', 'success');
@@ -773,7 +783,7 @@ export const SettingsPage: React.FC = () => {
               className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-black text-xs font-semibold transition"
             >
               <Download className="w-3.5 h-3.5" />
-              Unduh 03_seed_data_terkini.sql
+              Unduh Seed Data Terkini (.sql)
             </button>
           </div>
         </div>

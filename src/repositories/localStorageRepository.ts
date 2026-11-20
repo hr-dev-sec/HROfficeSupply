@@ -13,11 +13,26 @@ function normalizeStore(parsed: SupplyHubStore): SupplyHubStore {
   if (!Array.isArray(next.documents)) {
     next.documents = [];
   }
+  if (!Array.isArray(next.employees) || next.employees.length === 0) {
+    next.employees = buildSeedStore().employees;
+  }
   // Remove legacy PPC user / VIEWER role from cached storage
   if (Array.isArray(next.users)) {
     next.users = next.users.filter(
       (u) => u.id !== 'usr-ppc' && (u.role as string) !== 'VIEWER' && u.username !== 'ppc'
     );
+  }
+  // Normalize legacy non-HR department requests into 2 HR sections
+  if (Array.isArray(next.itemRequests)) {
+    next.itemRequests = next.itemRequests.map((req) => {
+      if (req.requesterSection === 'Production Dept.') {
+        return { ...req, requesterSection: 'HR Development' };
+      }
+      if (req.requesterSection === 'QA & Laboratory') {
+        return { ...req, requesterSection: 'Administration & Operation' };
+      }
+      return req;
+    });
   }
   // Clean legacy PPC Dept wording & refresh companyName from cached settings
   if (next.settings) {
@@ -42,6 +57,8 @@ function normalizeStore(parsed: SupplyHubStore): SupplyHubStore {
       ...n,
       message: /ppc/i.test(n.message)
         ? n.message.replace(/dan siap diunduh PPC Dept\.?/i, 'dan terkunci sebagai arsip resmi HR Dept.')
+        : /Production Dept\./i.test(n.message)
+        ? n.message.replace(/Production Dept\./gi, 'HR Development')
         : n.message,
       targetRoles: n.targetRoles
         ? n.targetRoles.filter((r) => (r as string) !== 'VIEWER')

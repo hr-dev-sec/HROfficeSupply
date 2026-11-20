@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, useMotionTemplate, useMotionValue, useSpring } from 'framer-motion';
-import { ArrowRight, Building2, Moon, ShieldCheck, Sun } from 'lucide-react';
+import { ArrowRight, Building2, ClipboardList, Moon, ShieldCheck, Sun } from 'lucide-react';
 import { AjiuLogoBadge, AjinomotoLogoTile, HseLogoBadge } from '../components/common/BrandEmblems';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -169,8 +169,8 @@ export const LandingPage: React.FC = () => {
                 Goods, dan Inventaris Overhead
               </p>
 
-              {/* Shimmering Primary Action */}
-              <div className="pt-1 flex flex-wrap items-center gap-4">
+              {/* Shimmering Primary Action + Public Employee Request Form */}
+              <div className="pt-1 flex flex-wrap items-center gap-3.5">
                 <button
                   type="button"
                   onClick={() => navigate(user ? '/app/dashboard' : '/login')}
@@ -185,6 +185,15 @@ export const LandingPage: React.FC = () => {
                     {user ? 'Masuk ke Workspace' : 'Masuk ke Sistem'}
                   </span>
                   <ArrowRight className="relative z-10 w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('/pengambilan')}
+                  className="inline-flex items-center gap-2.5 px-6 py-3.5 sm:py-4 rounded-2xl border border-[#C9A24B]/55 dark:border-[#C9A24B]/40 bg-white/85 dark:bg-[#14171E]/85 hover:border-[#E60012]/60 hover:bg-white dark:hover:bg-[#1A1E26] text-[#1A1D21] dark:text-white font-semibold text-sm tracking-wide shadow-[0_12px_28px_-14px_rgba(24,26,32,0.18)] hover:-translate-y-0.5 active:translate-y-0 transition-all whitespace-nowrap cursor-pointer"
+                >
+                  <ClipboardList className="w-4 h-4 text-[#E60012] shrink-0" />
+                  <span>Form Pengambilan Karyawan</span>
                 </button>
               </div>
 

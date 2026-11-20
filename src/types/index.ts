@@ -225,8 +225,28 @@ export interface OverheadInventoryItem {
   updatedAt: string;
 }
 
+export const HR_SECTIONS = [
+  'HR Development',
+  'Administration & Operation',
+] as const;
+
+export type HrSection = (typeof HR_SECTIONS)[number];
+
+export interface HrEmployee {
+  id: string;
+  nik: string;
+  name: string;
+  section: HrSection;
+  jabatan: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ItemRequest {
   id: string;
+  employeeId?: string;
+  requesterNik?: string;
   requesterName: string;
   requesterSection: string;
   requestDate: string;
@@ -234,10 +254,13 @@ export interface ItemRequest {
   items: Array<{
     itemId: string;
     itemName: string;
+    jenis?: SupplyType;
     uom: string;
     qty: number;
   }>;
   note: string;
+  source?: 'PORTAL_DEPAN' | 'ADMIN';
+  rejectionNote?: string;
   processedByName?: string;
   processedAt?: string;
 }
@@ -393,6 +416,7 @@ export interface MasterData {
 
 export interface SupplyHubStore {
   users: User[];
+  employees: HrEmployee[];
   items: SupplyItem[];
   transactions: StockTransaction[];
   opnames: OpnameSession[];

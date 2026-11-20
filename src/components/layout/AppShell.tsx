@@ -83,7 +83,7 @@ const NAV_ITEMS: NavEntry[] = [
   },
   {
     to: '/app/requests',
-    label: 'Permintaan Barang',
+    label: 'Pengambilan & Approval',
     icon: ClipboardList,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },

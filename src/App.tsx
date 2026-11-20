@@ -19,6 +19,7 @@ import { LoginPage } from './pages/LoginPage';
 import { MasterItemsPage } from './pages/MasterItemsPage';
 import { OpnamePage } from './pages/OpnamePage';
 import { OverheadInventoryPage } from './pages/OverheadInventoryPage';
+import { PublicRequestPage } from './pages/PublicRequestPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { RequestsPage } from './pages/RequestsPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -48,6 +49,7 @@ export default function App() {
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/pengambilan" element={<PublicRequestPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/verifikasi/:id" element={<VerifyReportPage />} />
 

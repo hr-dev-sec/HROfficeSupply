@@ -10,6 +10,8 @@ import type {
   AuditLogEntry,
   CompanySettings,
   ForecastMonthKey,
+  HrEmployee,
+  HrSection,
   ItemRequest,
   MasterData,
   MonthlyReport,
@@ -349,7 +351,48 @@ const toInventoryMutationRows = (inv: OverheadInventoryItem) =>
     by_name: m.byName,
   }));
 
+const toEmployeeRow = (emp: HrEmployee) => ({
+  id: emp.id,
+  nik: emp.nik,
+  name: emp.name,
+  section: emp.section,
+  jabatan: emp.jabatan,
+  active: emp.active,
+  created_at: emp.createdAt,
+  updated_at: emp.updatedAt,
+});
+
+const fromEmployeeRow = (r: Record<string, unknown>): HrEmployee => ({
+  id: String(r.id),
+  nik: String(r.nik ?? ''),
+  name: String(r.name),
+  section:
+    r.section === 'HR Development' || r.section === 'Administration & Operation'
+      ? (r.section as HrSection)
+      : 'HR Development',
+  jabatan: String(r.jabatan ?? ''),
+  active: Boolean(r.active ?? true),
+  createdAt: String(r.created_at ?? new Date().toISOString()),
+  updatedAt: String(r.updated_at ?? new Date().toISOString()),
+});
+
 const toRequestRow = (req: ItemRequest) => ({
+  id: req.id,
+  employee_id: req.employeeId ?? null,
+  requester_nik: req.requesterNik ?? null,
+  requester_name: req.requesterName,
+  requester_section: req.requesterSection,
+  request_date: req.requestDate,
+  status: req.status,
+  items: req.items,
+  note: req.note,
+  source: req.source ?? 'PORTAL_DEPAN',
+  rejection_note: req.rejectionNote ?? null,
+  processed_by_name: req.processedByName ?? null,
+  processed_at: req.processedAt ?? null,
+});
+
+const toRequestRowLegacy = (req: ItemRequest) => ({
   id: req.id,
   requester_name: req.requesterName,
   requester_section: req.requesterSection,
@@ -361,14 +404,37 @@ const toRequestRow = (req: ItemRequest) => ({
   processed_at: req.processedAt ?? null,
 });
 
+async function upsertItemRequestsSafe(requests: ItemRequest[]) {
+  if (!supabase || requests.length === 0) return;
+  try {
+    await upsertInBatches('item_requests', requests.map(toRequestRow));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '';
+    if (msg.includes('column') || msg.includes('schema cache') || msg.includes('employee_id')) {
+      await upsertInBatches('item_requests', requests.map(toRequestRowLegacy));
+    } else {
+      throw err;
+    }
+  }
+}
+
 const fromRequestRow = (r: Record<string, unknown>): ItemRequest => ({
   id: String(r.id),
+  employeeId: r.employee_id ? String(r.employee_id) : undefined,
+  requesterNik: r.requester_nik ? String(r.requester_nik) : undefined,
   requesterName: String(r.requester_name),
-  requesterSection: String(r.requester_section),
+  requesterSection:
+    String(r.requester_section) === 'Production Dept.'
+      ? 'HR Development'
+      : String(r.requester_section) === 'QA & Laboratory'
+      ? 'Administration & Operation'
+      : String(r.requester_section),
   requestDate: String(r.request_date),
   status: r.status as ItemRequest['status'],
   items: (r.items as ItemRequest['items']) || [],
   note: String(r.note ?? ''),
+  source: (r.source as ItemRequest['source']) || undefined,
+  rejectionNote: r.rejection_note ? String(r.rejection_note) : undefined,
   processedByName: r.processed_by_name ? String(r.processed_by_name) : undefined,
   processedAt: r.processed_at ? String(r.processed_at) : undefined,
 });
@@ -556,6 +622,7 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
     try {
       const [
         usersRes,
+        employeesRes,
         settingsRes,
         masterDataRes,
         itemsRes,
@@ -575,6 +642,7 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
         auditRes,
       ] = await Promise.all([
         supabase.from('app_users').select('*').order('created_at', { ascending: true }),
+        supabase.from('hr_employees').select('*').order('name', { ascending: true }),
         supabase.from('company_settings').select('*').eq('id', 'default').maybeSingle(),
         supabase.from('master_data_config').select('*').eq('id', 'default').maybeSingle(),
         supabase.from('supply_items').select('*').order('sort_order', { ascending: true }),
@@ -674,9 +742,18 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
           }
         : fallback.masterData;
 
+      const localCached = this.cache.loadStore();
       const rfMeta = rfMetaRes.data as Record<string, unknown> | null;
+      const hydratedEmployees: HrEmployee[] =
+        !employeesRes.error && employeesRes.data && employeesRes.data.length > 0
+          ? (employeesRes.data as Record<string, unknown>[]).map(fromEmployeeRow)
+          : localCached.employees && localCached.employees.length > 0
+          ? localCached.employees
+          : fallback.employees;
+
       const hydrated: SupplyHubStore = {
         users: (usersRes.data as Record<string, unknown>[]).map(fromUserRow),
+        employees: hydratedEmployees,
         items: ((itemsRes.data || []) as Record<string, unknown>[]).map(fromItemRow),
         transactions: ((txRes.data || []) as Record<string, unknown>[]).map(fromTxRow),
         opnames: ((opnameRes.data || []) as Record<string, unknown>[]).map((o) => ({
@@ -803,8 +880,15 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
         store.inventories.flatMap(toInventoryMutationRows)
       );
 
-      // 7. Item Requests
-      await upsertInBatches('item_requests', store.itemRequests.map(toRequestRow));
+      // 7. Database Karyawan Dept. HR & Permintaan Pengambilan
+      if (store.employees && store.employees.length > 0) {
+        try {
+          await upsertInBatches('hr_employees', store.employees.map(toEmployeeRow));
+        } catch (empErr) {
+          console.warn('Tabel hr_employees belum dimigrasi di Supabase:', empErr);
+        }
+      }
+      await upsertItemRequestsSafe(store.itemRequests);
 
       // 8. Rolling Forecast Meta, Rows & Submissions
       await upsertInBatches('rolling_forecast_meta', [
@@ -919,10 +1003,21 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
         await upsertInBatches('overhead_inventory_mutations', changed.flatMap(toInventoryMutationRows));
       }
 
+      if (prev.employees !== next.employees) {
+        try {
+          const nextIds = new Set((next.employees || []).map((e) => e.id));
+          const deletedIds = (prev.employees || []).filter((e) => !nextIds.has(e.id)).map((e) => e.id);
+          await upsertInBatches('hr_employees', (next.employees || []).map(toEmployeeRow));
+          await deleteByIds('hr_employees', deletedIds);
+        } catch (empErr) {
+          console.warn('Sinkronisasi hr_employees menunggu migrasi tabel di Supabase:', empErr);
+        }
+      }
+
       if (prev.itemRequests !== next.itemRequests) {
         const prevMap = new Map(prev.itemRequests.map((r) => [r.id, r]));
         const changed = next.itemRequests.filter((r) => prevMap.get(r.id) !== r);
-        await upsertInBatches('item_requests', changed.map(toRequestRow));
+        await upsertItemRequestsSafe(changed);
       }
 
       if (prev.rollingForecast !== next.rollingForecast) {

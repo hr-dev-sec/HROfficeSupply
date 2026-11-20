@@ -252,6 +252,16 @@ export const LoginPage: React.FC = () => {
             >
               Masuk ke HR SupplyHub
             </button>
+
+            <div className="pt-1 flex items-center justify-between gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+              <span>Karyawan Dept. HR ingin mengambil Office Supplies?</span>
+              <Link
+                to="/pengambilan"
+                className="font-semibold text-[#E60012] hover:underline whitespace-nowrap shrink-0"
+              >
+                Buka Form Pengambilan →
+              </Link>
+            </div>
           </form>
 
           {/* One-Click Demo Account Cards */}

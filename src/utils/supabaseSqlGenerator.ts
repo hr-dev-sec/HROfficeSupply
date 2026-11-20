@@ -1,5 +1,6 @@
 import schemaSqlRaw from '../../supabase/01_schema.sql?raw';
 import storageRlsSqlRaw from '../../supabase/02_storage_and_rls.sql?raw';
+import employeeMigrationSqlRaw from '../../supabase/03_migration_hr_employees.sql?raw';
 import type { SupplyHubStore } from '../types';
 
 export function getSupabaseSchemaSql(): string {
@@ -8,6 +9,10 @@ export function getSupabaseSchemaSql(): string {
 
 export function getSupabaseStorageRlsSql(): string {
   return storageRlsSqlRaw;
+}
+
+export function getSupabaseEmployeeMigrationSql(): string {
+  return employeeMigrationSqlRaw;
 }
 
 function sqlStr(val: string | undefined | null): string {
@@ -137,12 +142,21 @@ export function generateCurrentStoreSeedSql(store: SupplyHubStore): string {
     }
   }
 
-  lines.push('', `-- 10. Permintaan Barang Internal (${store.itemRequests.length} permintaan)`);
+  lines.push('', `-- 10A. Database Karyawan Dept. HR (${(store.employees || []).length} karyawan)`);
+  for (const emp of store.employees || []) {
+    lines.push(
+      `insert into public.hr_employees (id, nik, name, section, jabatan, active, created_at, updated_at) values (` +
+        `${sqlStr(emp.id)}, ${sqlStr(emp.nik)}, ${sqlStr(emp.name)}, ${sqlStr(emp.section)}, ${sqlStr(emp.jabatan)}, ${sqlBool(emp.active)}, ${sqlStr(emp.createdAt)}, ${sqlStr(emp.updatedAt)}) ` +
+        `on conflict (id) do update set nik = excluded.nik, name = excluded.name, section = excluded.section, jabatan = excluded.jabatan, active = excluded.active;`
+    );
+  }
+
+  lines.push('', `-- 10B. Permintaan & Pengambilan Barang Karyawan HR (${store.itemRequests.length} permintaan)`);
   for (const req of store.itemRequests) {
     lines.push(
-      `insert into public.item_requests (id, requester_name, requester_section, request_date, status, items, note, processed_by_name, processed_at) values (` +
-        `${sqlStr(req.id)}, ${sqlStr(req.requesterName)}, ${sqlStr(req.requesterSection)}, ${sqlStr(req.requestDate)}, ${sqlStr(req.status)}, ${sqlJson(req.items)}, ${sqlStr(req.note)}, ${sqlStr(req.processedByName)}, ${sqlStr(req.processedAt)}) ` +
-        `on conflict (id) do update set status = excluded.status, processed_by_name = excluded.processed_by_name, processed_at = excluded.processed_at;`
+      `insert into public.item_requests (id, employee_id, requester_nik, requester_name, requester_section, request_date, status, items, note, source, rejection_note, processed_by_name, processed_at) values (` +
+        `${sqlStr(req.id)}, ${sqlStr(req.employeeId)}, ${sqlStr(req.requesterNik)}, ${sqlStr(req.requesterName)}, ${sqlStr(req.requesterSection)}, ${sqlStr(req.requestDate)}, ${sqlStr(req.status)}, ${sqlJson(req.items)}, ${sqlStr(req.note)}, ${sqlStr(req.source || 'PORTAL_DEPAN')}, ${sqlStr(req.rejectionNote)}, ${sqlStr(req.processedByName)}, ${sqlStr(req.processedAt)}) ` +
+        `on conflict (id) do update set status = excluded.status, rejection_note = excluded.rejection_note, processed_by_name = excluded.processed_by_name, processed_at = excluded.processed_at;`
     );
   }
 

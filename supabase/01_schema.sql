@@ -277,16 +277,42 @@ create table if not exists public.overhead_inventory_mutations (
 create index if not exists idx_overhead_mut_inventory on public.overhead_inventory_mutations(inventory_id);
 
 -- ============================================================================
--- 10. PERMINTAAN BARANG INTERNAL SEKSI
+-- 10A. DATABASE KARYAWAN DEPARTEMEN HR (2 Seksi: HR Development & Administration & Operation)
+-- ============================================================================
+create table if not exists public.hr_employees (
+  id text primary key,
+  nik text not null default '',
+  name text not null,
+  section text not null check (section in ('HR Development', 'Administration & Operation')),
+  jabatan text not null default '',
+  active boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create index if not exists idx_hr_employees_section on public.hr_employees(section);
+create index if not exists idx_hr_employees_active on public.hr_employees(active);
+
+drop trigger if exists trg_hr_employees_updated_at on public.hr_employees;
+create trigger trg_hr_employees_updated_at
+before update on public.hr_employees
+for each row execute function public.set_updated_at();
+
+-- ============================================================================
+-- 10B. PERMINTAAN & PENGAMBILAN BARANG KARYAWAN DEPT. HR
 -- ============================================================================
 create table if not exists public.item_requests (
   id text primary key,
+  employee_id text,
+  requester_nik text,
   requester_name text not null,
   requester_section text not null,
   request_date date not null,
   status text not null check (status in ('MENUNGGU', 'DISETUJUI', 'DITOLAK')),
   items jsonb not null default '[]'::jsonb,
   note text not null default '',
+  source text not null default 'PORTAL_DEPAN',
+  rejection_note text,
   processed_by_name text,
   processed_at timestamptz,
   created_at timestamptz not null default timezone('utc', now())

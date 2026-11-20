@@ -4,6 +4,8 @@ import type {
   AuditLogEntry,
   CompanySettings,
   ForecastMonthKey,
+  HrEmployee,
+  HrSection,
   ItemRequest,
   MasterData,
   MonthlyReport,
@@ -125,9 +127,23 @@ interface SupplyHubContextValue {
     note: string,
     actor: User
   ) => void;
-  // Requests & Rolling Forecast GA
+  // Database Karyawan HR & Pengambilan Barang
+  upsertEmployee: (
+    emp: Omit<HrEmployee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+    actor: User
+  ) => { ok: boolean; employee?: HrEmployee; error?: string };
+  deleteEmployee: (id: string, actor: User) => void;
+  importEmployeesBatch: (
+    rows: Array<{ nik: string; name: string; section: HrSection; jabatan: string }>,
+    actor: User
+  ) => { added: number; updated: number };
   createItemRequest: (req: Omit<ItemRequest, 'id' | 'status'>, actor?: User) => ItemRequest;
-  processItemRequest: (reqId: string, approve: boolean, actor: User) => { ok: boolean; error?: string };
+  processItemRequest: (
+    reqId: string,
+    approve: boolean,
+    actor: User,
+    rejectionNote?: string
+  ) => { ok: boolean; error?: string };
   setActiveForecastMonth: (month: ForecastMonthKey, actor: User) => void;
   updateForecastRow: (
     rowId: string,
@@ -1764,22 +1780,190 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [commit]
   );
 
+  const upsertEmployee = useCallback(
+    (
+      emp: Omit<HrEmployee, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+      actor: User
+    ): { ok: boolean; employee?: HrEmployee; error?: string } => {
+      const cleanName = emp.name.trim();
+      const cleanNik = emp.nik.trim().toUpperCase();
+      if (!cleanName) {
+        return { ok: false, error: 'Nama karyawan wajib diisi.' };
+      }
+
+      if (cleanNik) {
+        const dupNik = (store.employees || []).find(
+          (e) => e.id !== emp.id && e.nik.trim().toUpperCase() === cleanNik
+        );
+        if (dupNik) {
+          return {
+            ok: false,
+            error: `NIK "${cleanNik}" sudah terdaftar atas nama ${dupNik.name}.`,
+          };
+        }
+      }
+
+      const now = new Date().toISOString();
+      const existing = emp.id ? (store.employees || []).find((e) => e.id === emp.id) : undefined;
+      const saved: HrEmployee = existing
+        ? {
+            ...existing,
+            nik: cleanNik,
+            name: cleanName,
+            section: emp.section,
+            jabatan: emp.jabatan.trim(),
+            active: emp.active,
+            updatedAt: now,
+          }
+        : {
+            id: `emp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            nik: cleanNik,
+            name: cleanName,
+            section: emp.section,
+            jabatan: emp.jabatan.trim(),
+            active: emp.active,
+            createdAt: now,
+            updatedAt: now,
+          };
+
+      commit((prev) => {
+        const list = prev.employees || [];
+        const nextList = existing
+          ? list.map((e) => (e.id === saved.id ? saved : e))
+          : [saved, ...list];
+        return {
+          ...prev,
+          employees: nextList,
+          auditLogs: [
+            makeAudit({
+              userId: actor.id,
+              userName: actor.name,
+              userRole: actor.role,
+              action: existing ? 'UPDATE' : 'CREATE',
+              objectType: 'Karyawan Dept. HR',
+              objectLabel: `${saved.name}${saved.nik ? ` (${saved.nik})` : ''} · ${saved.section}`,
+            }),
+            ...prev.auditLogs,
+          ],
+        };
+      });
+
+      return { ok: true, employee: saved };
+    },
+    [commit, store.employees]
+  );
+
+  const deleteEmployee = useCallback(
+    (id: string, actor: User) => {
+      const target = (store.employees || []).find((e) => e.id === id);
+      if (!target) return;
+      commit((prev) => ({
+        ...prev,
+        employees: (prev.employees || []).filter((e) => e.id !== id),
+        auditLogs: [
+          makeAudit({
+            userId: actor.id,
+            userName: actor.name,
+            userRole: actor.role,
+            action: 'DELETE',
+            objectType: 'Karyawan Dept. HR',
+            objectLabel: `${target.name}${target.nik ? ` (${target.nik})` : ''}`,
+          }),
+          ...prev.auditLogs,
+        ],
+      }));
+    },
+    [commit, store.employees]
+  );
+
+  const importEmployeesBatch = useCallback(
+    (
+      rows: Array<{ nik: string; name: string; section: HrSection; jabatan: string }>,
+      actor: User
+    ): { added: number; updated: number } => {
+      const now = new Date().toISOString();
+      let added = 0;
+      let updated = 0;
+
+      commit((prev) => {
+        const list = [...(prev.employees || [])];
+        for (const r of rows) {
+          const cleanName = r.name.trim();
+          if (!cleanName) continue;
+          const cleanNik = r.nik.trim().toUpperCase();
+
+          const matchIdx = list.findIndex((e) =>
+            cleanNik
+              ? e.nik.trim().toUpperCase() === cleanNik
+              : e.name.trim().toLowerCase() === cleanName.toLowerCase()
+          );
+
+          if (matchIdx >= 0) {
+            list[matchIdx] = {
+              ...list[matchIdx],
+              nik: cleanNik || list[matchIdx].nik,
+              name: cleanName,
+              section: r.section,
+              jabatan: r.jabatan.trim() || list[matchIdx].jabatan,
+              active: true,
+              updatedAt: now,
+            };
+            updated++;
+          } else {
+            list.push({
+              id: `emp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              nik: cleanNik,
+              name: cleanName,
+              section: r.section,
+              jabatan: r.jabatan.trim(),
+              active: true,
+              createdAt: now,
+              updatedAt: now,
+            });
+            added++;
+          }
+        }
+
+        return {
+          ...prev,
+          employees: list,
+          auditLogs: [
+            makeAudit({
+              userId: actor.id,
+              userName: actor.name,
+              userRole: actor.role,
+              action: 'IMPORT',
+              objectType: 'Karyawan Dept. HR',
+              objectLabel: `Import ${added} baru, ${updated} diperbarui`,
+            }),
+            ...prev.auditLogs,
+          ],
+        };
+      });
+
+      return { added, updated };
+    },
+    [commit]
+  );
+
   const createItemRequest = useCallback(
     (req: Omit<ItemRequest, 'id' | 'status'>, actor?: User): ItemRequest => {
       const created: ItemRequest = {
         ...req,
         id: `req-${Date.now()}`,
         status: 'MENUNGGU',
+        source: req.source || (actor ? 'ADMIN' : 'PORTAL_DEPAN'),
       };
       const now = new Date().toISOString();
+      const totalUnits = created.items.reduce((s, it) => s + it.qty, 0);
       commit((prev) => ({
         ...prev,
         itemRequests: [created, ...prev.itemRequests],
         notifications: [
           {
             id: `notif-req-${Date.now()}`,
-            title: 'Permintaan Barang Baru',
-            message: `${created.requesterName} (${created.requesterSection}) meminta ${created.items.length} jenis barang.`,
+            title: 'Pengambilan Barang Menunggu Approval',
+            message: `${created.requesterName} (${created.requesterSection}) mengajukan ${created.items.length} jenis barang (${totalUnits} unit).`,
             type: 'LAPORAN',
             targetRoles: ['STAFF', 'SECTION_MANAGER', 'SUPER_ADMIN'],
             linkTo: '/app/requests',
@@ -1795,8 +1979,8 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 userName: actor.name,
                 userRole: actor.role,
                 action: 'CREATE',
-                objectType: 'Permintaan Barang',
-                objectLabel: `${created.requesterSection} (${created.items.length} item)`,
+                objectType: 'Pengambilan Barang',
+                objectLabel: `${created.requesterName} (${created.requesterSection}) · ${created.items.length} item`,
               }),
               ...prev.auditLogs,
             ]
@@ -1808,7 +1992,12 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   );
 
   const processItemRequest = useCallback(
-    (reqId: string, approve: boolean, actor: User): { ok: boolean; error?: string } => {
+    (
+      reqId: string,
+      approve: boolean,
+      actor: User,
+      rejectionNote?: string
+    ): { ok: boolean; error?: string } => {
       const req = store.itemRequests.find((r) => r.id === reqId);
       if (!req) return { ok: false, error: 'Permintaan tidak ditemukan.' };
       if (req.status !== 'MENUNGGU') return { ok: false, error: 'Permintaan sudah diproses.' };
@@ -1820,7 +2009,7 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             type: 'PAKAI',
             qty: it.qty,
             date: new Date().toISOString().slice(0, 10),
-            note: `Permintaan Seksi ${req.requesterSection} (${req.requesterName})`,
+            note: `Pengambilan Karyawan ${req.requesterName}${req.requesterNik ? ` (${req.requesterNik})` : ''} · ${req.requesterSection}${req.note ? ` — ${req.note}` : ''}`,
           })),
           actor
         );
@@ -1828,6 +2017,7 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       const now = new Date().toISOString();
+      const cleanRejectNote = !approve && rejectionNote?.trim() ? rejectionNote.trim() : undefined;
       commit((prev) => ({
         ...prev,
         itemRequests: prev.itemRequests.map((r) =>
@@ -1835,6 +2025,7 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             ? {
                 ...r,
                 status: approve ? 'DISETUJUI' : 'DITOLAK',
+                rejectionNote: cleanRejectNote,
                 processedByName: actor.name,
                 processedAt: now,
               }
@@ -1846,8 +2037,9 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             userName: actor.name,
             userRole: actor.role,
             action: approve ? 'APPROVE' : 'REJECT',
-            objectType: 'Permintaan Barang',
-            objectLabel: `${req.requesterSection} — ${req.requesterName}`,
+            objectType: 'Pengambilan Barang',
+            objectLabel: `${req.requesterName} (${req.requesterSection})`,
+            newValue: cleanRejectNote || (approve ? 'Disetujui & dicatat Pakai' : 'Ditolak'),
           }),
           ...prev.auditLogs,
         ],
@@ -2353,6 +2545,9 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         getNextPartId,
         upsertInventoryItem,
         recordInventoryMutation,
+        upsertEmployee,
+        deleteEmployee,
+        importEmployeesBatch,
         createItemRequest,
         processItemRequest,
         setActiveForecastMonth,
