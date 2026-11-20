@@ -1,0 +1,6 @@
+{
+  "name": "HR SupplyHub",
+  "description": "Sistem kontrol office supplies, overhead goods, dan inventaris overhead dengan laporan A3 dan tanda tangan digital untuk Departemen Human Resources PT Ajinomoto Indonesia - PT Ajinex International, Mojokerto Factory.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

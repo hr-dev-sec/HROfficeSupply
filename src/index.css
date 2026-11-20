@@ -1,0 +1,130 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-sans: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --brand-red: #E60012;
+    --brand-red-hover: #C4000F;
+    --brand-gold: #C9A24B;
+    --surface-canvas: #FAF8F5;
+    --surface-card: #FFFFFF;
+    --text-primary: #1F2328;
+  }
+
+  .dark {
+    --surface-canvas: #0F1114;
+    --surface-card: #171A1F;
+    --text-primary: #F1F3F5;
+  }
+
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--surface-canvas);
+    color: var(--text-primary);
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.glass-surface {
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.dark .glass-surface {
+  background: rgba(23, 26, 31, 0.86);
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.55);
+}
+
+/* A3 Landscape Print Rules for Official PDF-Faithful Reports */
+@media print {
+  @page {
+    size: A3 landscape;
+    margin: 8mm 10mm;
+  }
+
+  html, body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only-container {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #FFFFFF !important;
+  }
+
+  .a3-report-sheet {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    font-size: 9pt !important;
+  }
+
+  .a3-report-sheet table {
+    page-break-inside: auto;
+  }
+
+  .a3-report-sheet tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  .a3-report-sheet thead {
+    display: table-header-group;
+  }
+
+  .signature-print-block {
+    page-break-inside: avoid;
+  }
+}
