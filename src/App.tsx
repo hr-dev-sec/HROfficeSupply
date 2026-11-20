@@ -6,6 +6,7 @@ import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { SupplyHubProvider } from './context/SupplyHubContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
@@ -43,10 +44,11 @@ const RoleGuard: React.FC<{ roles?: UserRole[]; children: React.ReactNode }> = (
 export default function App() {
   return (
     <ThemeProvider>
-      <ToastProvider>
-        <SupplyHubProvider>
-          <AuthProvider>
-            <BrowserRouter>
+      <LanguageProvider>
+        <ToastProvider>
+          <SupplyHubProvider>
+            <AuthProvider>
+              <BrowserRouter>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/pengambilan" element={<PublicRequestPage />} />
@@ -149,10 +151,11 @@ export default function App() {
 
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            </BrowserRouter>
-          </AuthProvider>
-        </SupplyHubProvider>
-      </ToastProvider>
+              </BrowserRouter>
+            </AuthProvider>
+          </SupplyHubProvider>
+        </ToastProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }

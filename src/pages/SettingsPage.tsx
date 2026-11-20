@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   ArrowRightLeft,
+  Check,
   CloudUpload,
   Database,
   Download,
@@ -8,6 +9,8 @@ import {
   Eye,
   EyeOff,
   FileCode2,
+  Globe,
+  Palette,
   RotateCcw,
   Save,
   Search,
@@ -19,8 +22,9 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
-import { useTheme } from '../context/ThemeContext';
+import { COLOR_THEMES, useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { processAndUploadImage } from '../services/mediaStorageService';
 import type { User, UserRole } from '../types';
@@ -76,7 +80,8 @@ export const SettingsPage: React.FC = () => {
     importBackupJson,
     resetDemoData,
   } = useSupplyHub();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, colorTheme, setColorTheme, activePreset } = useTheme();
+  const { language, setLanguage, tr } = useLanguage();
   const { toast } = useToast();
 
   const [settingsForm, setSettingsForm] = useState(store.settings);
@@ -321,28 +326,38 @@ export const SettingsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-extrabold font-display">Pengaturan Sistem &amp; Profil</h2>
+        <h2 className="text-xl font-extrabold font-display">
+          {tr('Pengaturan Sistem & Profil', 'System Settings & Profile')}
+        </h2>
         <p className="text-xs text-neutral-500">
-          Kelola profil, tanda tangan tersimpan, kop laporan, akun &amp; re-organisasi HR, serta persiapan database Supabase.
+          {tr(
+            'Kelola profil, tema warna, bahasa (ID/EN), tanda tangan tersimpan, kop laporan, akun HR, dan database Supabase.',
+            'Manage profile, color themes, language (ID/EN), saved signatures, report headers, HR accounts, and Supabase database.'
+          )}
         </p>
       </div>
 
-      {/* Profil & Tema */}
-      <div className="grid lg:grid-cols-2 gap-5">
-        <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
+      {/* Profil & Tampilan (Tema Warna + Bahasa + Backup) */}
+      <div className="grid lg:grid-cols-12 gap-5">
+        <div className="lg:col-span-5 p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-bold">Profil &amp; Tanda Tangan Tersimpan</h3>
+            <h3 className="text-sm font-bold">
+              {tr('Profil & Tanda Tangan Tersimpan', 'Profile & Saved Signature')}
+            </h3>
             <button
               type="button"
               onClick={() => openEditUserModal(user, true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-[#E60012] text-xs font-semibold transition"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary text-xs font-semibold transition cursor-pointer"
             >
               <Edit3 className="w-3.5 h-3.5" />
-              Edit Profil &amp; Sandi
+              {tr('Edit Profil & Sandi', 'Edit Profile & Password')}
             </button>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-[#E60012] text-white font-bold flex items-center justify-center shrink-0">
+            <div
+              className="w-11 h-11 rounded-xl text-white font-bold flex items-center justify-center shrink-0"
+              style={{ backgroundColor: activePreset.primary }}
+            >
               {user.avatarInitials}
             </div>
             <div className="text-xs min-w-0">
@@ -364,43 +379,166 @@ export const SettingsPage: React.FC = () => {
               />
             ) : (
               <span className="text-xs text-neutral-400">
-                Belum ada tanda tangan tersimpan (otomatis tersimpan saat menandatangani laporan atau unggah melalui Edit Profil).
+                {tr(
+                  'Belum ada tanda tangan tersimpan (otomatis tersimpan saat menandatangani laporan atau unggah melalui Edit Profil).',
+                  'No saved signature yet (auto-saved when signing a report or upload via Edit Profile).'
+                )}
               </span>
             )}
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
-          <h3 className="text-sm font-bold">Tampilan &amp; Backup Data</h3>
-          <div className="flex items-center justify-between text-xs">
-            <span>Tema Antarmuka</span>
-            <div className="flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800">
-              <button
-                type="button"
-                onClick={() => setTheme('light')}
-                className={`px-3 py-1.5 rounded-lg font-semibold ${
-                  theme === 'light' ? 'bg-white text-black shadow-sm' : 'text-neutral-500'
-                }`}
-              >
-                Terang
-              </button>
-              <button
-                type="button"
-                onClick={() => setTheme('dark')}
-                className={`px-3 py-1.5 rounded-lg font-semibold ${
-                  theme === 'dark' ? 'bg-[#171A1F] text-white shadow-sm' : 'text-neutral-500'
-                }`}
-              >
-                Gelap
-              </button>
+        <div className="lg:col-span-7 p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <Palette className="w-4 h-4 text-theme-primary" />
+                {tr('Tema Warna, Mode & Bahasa Sistem', 'Color Theme, Mode & System Language')}
+              </h3>
+              <p className="text-[11px] text-neutral-500 mt-0.5">
+                {tr(
+                  'Berlaku langsung pada Landing Page, Form Pengambilan, Login, dan seluruh Dashboard.',
+                  'Applies instantly across Landing Page, Public Request Form, Login, and entire Dashboard.'
+                )}
+              </p>
             </div>
           </div>
 
+          {/* 5 Color Theme Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2.5">
+            {COLOR_THEMES.map((preset) => {
+              const active = colorTheme === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    setColorTheme(preset.id);
+                    toast(
+                      tr(
+                        `Tema "${preset.nameId}" diterapkan`,
+                        `Theme "${preset.nameEn}" applied`
+                      ),
+                      'success'
+                    );
+                  }}
+                  style={
+                    active
+                      ? {
+                          borderColor: preset.primary,
+                          backgroundColor: 'rgba(var(--brand-primary-rgb), 0.06)',
+                        }
+                      : undefined
+                  }
+                  className={`p-3 rounded-xl border text-left transition flex items-start gap-2.5 cursor-pointer ${
+                    active
+                      ? 'shadow-xs'
+                      : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
+                  }`}
+                >
+                  <span className="flex items-center -space-x-1 mt-0.5 shrink-0">
+                    <span
+                      className="w-4 h-4 rounded-full border border-white dark:border-neutral-900 shadow-xs"
+                      style={{ backgroundColor: preset.primary }}
+                    />
+                    <span
+                      className="w-3.5 h-3.5 rounded-full border border-white dark:border-neutral-900"
+                      style={{ backgroundColor: preset.accent }}
+                    />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-bold truncate">
+                        {language === 'id' ? preset.nameId : preset.nameEn}
+                      </span>
+                      {active && (
+                        <Check
+                          className="w-3.5 h-3.5 shrink-0"
+                          style={{ color: preset.primary }}
+                        />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
+                      {language === 'id' ? preset.descId : preset.descEn}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mode + Language Row */}
+          <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-neutral-600 dark:text-neutral-300">
+                {tr('Mode Tampilan', 'Display Mode')}
+              </span>
+              <div className="flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => setTheme('light')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
+                    theme === 'light' ? 'bg-white text-black shadow-sm' : 'text-neutral-500'
+                  }`}
+                >
+                  {tr('Terang', 'Light')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme('dark')}
+                  className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
+                    theme === 'dark' ? 'bg-[#171A1F] text-white shadow-sm' : 'text-neutral-500'
+                  }`}
+                >
+                  {tr('Gelap', 'Dark')}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-neutral-600 dark:text-neutral-300 inline-flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-neutral-400" />
+                {tr('Bahasa', 'Language')}
+              </span>
+              <div className="flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLanguage('id');
+                    setSettingsForm((prev) => ({ ...prev, language: 'id' }));
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
+                    language === 'id'
+                      ? 'bg-white dark:bg-[#171A1F] text-neutral-900 dark:text-white shadow-sm'
+                      : 'text-neutral-500'
+                  }`}
+                >
+                  Indonesia
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLanguage('en');
+                    setSettingsForm((prev) => ({ ...prev, language: 'en' }));
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer ${
+                    language === 'en'
+                      ? 'bg-white dark:bg-[#171A1F] text-neutral-900 dark:text-white shadow-sm'
+                      : 'text-neutral-500'
+                  }`}
+                >
+                  English
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Backup Controls */}
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
             <button
               type="button"
               onClick={handleDownloadBackup}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               Backup JSON
@@ -414,12 +552,12 @@ export const SettingsPage: React.FC = () => {
               type="button"
               onClick={() => {
                 resetDemoData(user);
-                toast('Data demo berhasil direset', 'success');
+                toast(tr('Data demo berhasil direset', 'Demo data reset'), 'success');
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-600/15 text-amber-700 dark:text-amber-400 text-xs font-semibold hover:bg-amber-600/20 transition"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-600/15 text-amber-700 dark:text-amber-400 text-xs font-semibold hover:bg-amber-600/20 transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Reset Data Demo
+              {tr('Reset Data Demo', 'Reset Demo Data')}
             </button>
           </div>
         </div>
@@ -431,13 +569,18 @@ export const SettingsPage: React.FC = () => {
         className="p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4 text-xs"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-bold">Kop Dokumen, Pengingat &amp; Teks Petunjuk Laporan</h3>
+          <h3 className="text-sm font-bold">
+            {tr(
+              'Kop Dokumen, Pengingat & Teks Petunjuk Laporan',
+              'Document Headers, Reminders & Report Guidelines'
+            )}
+          </h3>
           <button
             type="submit"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white font-semibold transition"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary text-white font-semibold transition cursor-pointer"
           >
             <Save className="w-3.5 h-3.5" />
-            Simpan Pengaturan
+            {tr('Simpan Pengaturan', 'Save Settings')}
           </button>
         </div>
 
@@ -495,20 +638,23 @@ export const SettingsPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#E60012]" />
-                Manajemen Akun Pengguna &amp; Re-organisasi ({store.users.length})
+                <Users className="w-4 h-4 text-theme-primary" />
+                {tr('Manajemen Akun Pengguna & Re-organisasi', 'User Account & Reorganization Management')} ({store.users.length})
               </h3>
               <p className="text-[11px] text-neutral-500 mt-0.5">
-                Ubah nama, jabatan, seksi, peran, kata sandi, atau lakukan serah terima slot persetujuan saat terjadi rotasi/re-organisasi.
+                {tr(
+                  'Ubah nama, jabatan, seksi, peran, kata sandi, atau lakukan serah terima slot persetujuan saat terjadi rotasi/re-organisasi.',
+                  'Update names, job titles, sections, roles, passwords, or hand over approval slots during reorganization.'
+                )}
               </p>
             </div>
             <button
               type="button"
               onClick={openCreateUserModal}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold shrink-0 transition"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-theme-primary text-white text-xs font-semibold shrink-0 transition cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5" />
-              Tambah Pengguna
+              {tr('Tambah Pengguna', 'Add User')}
             </button>
           </div>
 
@@ -692,8 +838,11 @@ export const SettingsPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold flex items-center gap-2">
-                <Database className="w-4 h-4 text-[#E60012]" />
-                Draft Database &amp; Kesiapan Integrasi Supabase (PostgreSQL + Storage)
+                <Database className="w-4 h-4 text-theme-primary" />
+                {tr(
+                  'Draft Database & Kesiapan Integrasi Supabase (PostgreSQL + Storage)',
+                  'Database Schema & Supabase Integration (PostgreSQL + Storage)'
+                )}
               </h3>
               <p className="text-xs text-neutral-500 mt-1 max-w-3xl leading-relaxed">
                 Struktur database mencakup keseluruhan data HR SupplyHub: <strong>19 tabel relasional PostgreSQL</strong> (akun pengguna &amp; re-organisasi, database karyawan HR, pengambilan &amp; approval barang, master item, transaksi, stock opname, inventaris overhead &amp; mutasi, rolling forecast GA FY2026, template &amp; laporan bulanan A3, arsip dokumen, notifikasi, audit trail) serta <strong>2 Storage Bucket (<code className="font-mono-num">supplyhub-media</code> &amp; <code className="font-mono-num">supplyhub-documents</code>)</strong> untuk foto barang, tanda tangan, dan arsip dokumen PDF/Excel/Word.
@@ -704,10 +853,12 @@ export const SettingsPage: React.FC = () => {
                 type="button"
                 disabled={syncingSupabase}
                 onClick={handlePushToSupabase}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] disabled:opacity-60 text-white text-xs font-semibold shrink-0 transition"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary disabled:opacity-60 text-white text-xs font-semibold shrink-0 transition cursor-pointer"
               >
                 <CloudUpload className="w-4 h-4" />
-                {syncingSupabase ? 'Menyinkronkan...' : 'Sinkronkan Data, Foto & Dokumen ke Supabase'}
+                {syncingSupabase
+                  ? tr('Menyinkronkan...', 'Syncing...')
+                  : tr('Sinkronkan Data, Foto & Dokumen ke Supabase', 'Sync Data, Photos & Docs to Supabase')}
               </button>
             )}
           </div>

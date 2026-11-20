@@ -404,7 +404,7 @@ export interface CompanySettings {
   instructionsInventory: string[];
   reminderEarlyMonthDay: number;
   reminderOpnameDay: number;
-  language: 'id';
+  language: 'id' | 'en';
 }
 
 export interface MasterData {

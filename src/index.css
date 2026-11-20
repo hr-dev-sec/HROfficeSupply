@@ -2,22 +2,135 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
-  :root {
+  :root,
+  [data-color-theme="crimson"] {
     --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
     --font-sans: 'DM Sans', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-    --brand-red: #E60012;
-    --brand-red-hover: #C4000F;
-    --brand-gold: #C9A24B;
-    --surface-canvas: #FAF8F5;
+
+    --brand-primary: #E60012;
+    --brand-primary-hover: #C4000F;
+    --brand-primary-deep: #7A0712;
+    --brand-primary-rgb: 230, 0, 18;
+    --brand-accent: #C9A24B;
+    --brand-accent-text: #9A7422;
+    --brand-accent-dark-text: #DFB963;
+    --brand-accent-rgb: 201, 162, 75;
+
+    --surface-canvas: #F9F6F0;
     --surface-card: #FFFFFF;
     --text-primary: #1F2328;
+
+    --login-grad-from: #B8000E;
+    --login-grad-via: #7A0712;
+    --login-grad-to: #1A1D22;
   }
 
-  .dark {
-    --surface-canvas: #0F1114;
-    --surface-card: #171A1F;
+  .dark,
+  .dark[data-color-theme="crimson"] {
+    --surface-canvas: #0B0D11;
+    --surface-card: #161920;
     --text-primary: #F1F3F5;
+  }
+
+  [data-color-theme="ocean"] {
+    --brand-primary: #0F4C81;
+    --brand-primary-hover: #0B3A63;
+    --brand-primary-deep: #07233E;
+    --brand-primary-rgb: 15, 76, 129;
+    --brand-accent: #0EA5E9;
+    --brand-accent-text: #0369A1;
+    --brand-accent-dark-text: #7DD3FC;
+    --brand-accent-rgb: 14, 165, 233;
+
+    --surface-canvas: #F3F7FC;
+    --surface-card: #FFFFFF;
+    --text-primary: #0F172A;
+
+    --login-grad-from: #0F4C81;
+    --login-grad-via: #0A2E52;
+    --login-grad-to: #0B1524;
+  }
+
+  .dark[data-color-theme="ocean"] {
+    --surface-canvas: #080E17;
+    --surface-card: #111A29;
+    --text-primary: #F1F5F9;
+  }
+
+  [data-color-theme="emerald"] {
+    --brand-primary: #057A55;
+    --brand-primary-hover: #046144;
+    --brand-primary-deep: #033E2B;
+    --brand-primary-rgb: 5, 122, 85;
+    --brand-accent: #C9A24B;
+    --brand-accent-text: #047857;
+    --brand-accent-dark-text: #6EE7B7;
+    --brand-accent-rgb: 16, 185, 129;
+
+    --surface-canvas: #F3F8F5;
+    --surface-card: #FFFFFF;
+    --text-primary: #14211B;
+
+    --login-grad-from: #057A55;
+    --login-grad-via: #044E37;
+    --login-grad-to: #0D1C17;
+  }
+
+  .dark[data-color-theme="emerald"] {
+    --surface-canvas: #07110D;
+    --surface-card: #101D17;
+    --text-primary: #ECFDF5;
+  }
+
+  [data-color-theme="amber"] {
+    --brand-primary: #B45309;
+    --brand-primary-hover: #92400E;
+    --brand-primary-deep: #5C2808;
+    --brand-primary-rgb: 180, 83, 9;
+    --brand-accent: #D97706;
+    --brand-accent-text: #9A3412;
+    --brand-accent-dark-text: #FCD34D;
+    --brand-accent-rgb: 217, 119, 6;
+
+    --surface-canvas: #FAF6F0;
+    --surface-card: #FFFFFF;
+    --text-primary: #211B16;
+
+    --login-grad-from: #9A3412;
+    --login-grad-via: #5C220B;
+    --login-grad-to: #1C1613;
+  }
+
+  .dark[data-color-theme="amber"] {
+    --surface-canvas: #110E0B;
+    --surface-card: #1B1612;
+    --text-primary: #F8F4EE;
+  }
+
+  [data-color-theme="slate"] {
+    --brand-primary: #4338CA;
+    --brand-primary-hover: #3730A3;
+    --brand-primary-deep: #1E1B4B;
+    --brand-primary-rgb: 67, 56, 202;
+    --brand-accent: #6366F1;
+    --brand-accent-text: #4338CA;
+    --brand-accent-dark-text: #A5B4FC;
+    --brand-accent-rgb: 99, 102, 241;
+
+    --surface-canvas: #F5F6FA;
+    --surface-card: #FFFFFF;
+    --text-primary: #111827;
+
+    --login-grad-from: #312E81;
+    --login-grad-via: #1E1B4B;
+    --login-grad-to: #0B0F1A;
+  }
+
+  .dark[data-color-theme="slate"] {
+    --surface-canvas: #0A0D14;
+    --surface-card: #131722;
+    --text-primary: #F3F4F6;
   }
 
   html,
@@ -29,6 +142,7 @@
     font-family: var(--font-sans);
     background-color: var(--surface-canvas);
     color: var(--text-primary);
+    transition: background-color 200ms ease, color 200ms ease;
   }
 
   h1, h2, h3, h4, .font-display {
@@ -39,6 +153,35 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* Semantic Theme Utilities */
+.bg-theme-canvas {
+  background-color: var(--surface-canvas);
+}
+
+.bg-theme-primary {
+  background-color: var(--brand-primary);
+}
+
+.bg-theme-primary:hover {
+  background-color: var(--brand-primary-hover);
+}
+
+.text-theme-primary {
+  color: var(--brand-primary);
+}
+
+.text-theme-accent {
+  color: var(--brand-accent-text);
+}
+
+.dark .text-theme-accent {
+  color: var(--brand-accent-dark-text);
+}
+
+.border-theme-primary {
+  border-color: var(--brand-primary);
 }
 
 .tabular-nums {
@@ -52,7 +195,7 @@
 }
 
 .dark .glass-surface {
-  background: rgba(23, 26, 31, 0.86);
+  background: rgba(20, 24, 31, 0.86);
 }
 
 /* Custom subtle scrollbar */

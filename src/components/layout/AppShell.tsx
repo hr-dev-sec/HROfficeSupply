@@ -17,97 +17,109 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Moon,
   Package,
   PenTool,
   RotateCcw,
   Search,
   Settings,
-  Sun,
   User as UserIcon,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useSupplyHub } from '../../context/SupplyHubContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import type { UserRole } from '../../types';
 import { formatDateTimeIndo, getRoleLabel } from '../../utils/format';
+import { AppearanceControls } from '../common/AppearanceControls';
 import { AjiuLogoBadge, HseLogoBadge } from '../common/BrandEmblems';
 
 interface NavEntry {
   to: string;
   label: string;
+  labelEn: string;
   icon: React.FC<{ className?: string }>;
   roles?: UserRole[];
 }
 
 const NAV_ITEMS: NavEntry[] = [
-  { to: '/app/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/app/dashboard', label: 'Dashboard', labelEn: 'Dashboard', icon: LayoutDashboard },
   {
     to: '/app/items',
     label: 'Master Item',
+    labelEn: 'Item Master',
     icon: Package,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
   {
     to: '/app/transactions',
     label: 'Transaksi',
+    labelEn: 'Transactions',
     icon: ArrowLeftRight,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
   {
     to: '/app/opname',
     label: 'Stock Opname',
+    labelEn: 'Stock Opname',
     icon: ClipboardCheck,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
-  { to: '/app/reports', label: 'Laporan Bulanan', icon: FileSpreadsheet },
+  { to: '/app/reports', label: 'Laporan Bulanan', labelEn: 'Monthly Reports', icon: FileSpreadsheet },
   {
     to: '/app/documents',
     label: 'Arsip Dokumen',
+    labelEn: 'Document Archive',
     icon: FolderUp,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
   {
     to: '/app/signatures',
     label: 'Tanda Tangan Digital',
+    labelEn: 'Digital Signatures',
     icon: PenTool,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
   {
     to: '/app/inventory',
     label: 'Inventaris Overhead',
+    labelEn: 'Overhead Inventory',
     icon: Box,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
   {
     to: '/app/requests',
     label: 'Pengambilan & Approval',
+    labelEn: 'Requests & Approval',
     icon: ClipboardList,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
   {
     to: '/app/forecast',
     label: 'Rolling Forecast GA',
+    labelEn: 'GA Rolling Forecast',
     icon: CalendarRange,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
   {
     to: '/app/assistant',
     label: 'HR Assistant',
+    labelEn: 'HR Assistant',
     icon: Bot,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
   {
     to: '/app/audit',
     label: 'Audit Log',
+    labelEn: 'Audit Log',
     icon: History,
     roles: ['SUPER_ADMIN', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
   {
     to: '/app/settings',
     label: 'Pengaturan',
+    labelEn: 'Settings',
     icon: Settings,
     roles: ['SUPER_ADMIN', 'STAFF', 'SECTION_MANAGER', 'DEPT_MANAGER'],
   },
@@ -116,7 +128,8 @@ const NAV_ITEMS: NavEntry[] = [
 export const AppShell: React.FC = () => {
   const { user, logout } = useAuth();
   const { store, markNotificationRead, markAllNotificationsRead, resetDemoData } = useSupplyHub();
-  const { theme, toggleTheme } = useTheme();
+  const { activePreset } = useTheme();
+  const { tr } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -214,11 +227,18 @@ export const AppShell: React.FC = () => {
   const handleResetDemo = () => {
     resetDemoData(user);
     setProfileOpen(false);
-    toast('Data demo berhasil dipulihkan', 'success', 'Seluruh data kembali ke kondisi awal PDF September 2026.');
+    toast(
+      tr('Data demo berhasil dipulihkan', 'Demo data restored'),
+      'success',
+      tr(
+        'Seluruh data kembali ke kondisi awal PDF September 2026.',
+        'All records have been reset to the initial September 2026 baseline.'
+      )
+    );
   };
 
   return (
-    <div className="min-h-screen flex bg-[#FAF8F5] dark:bg-[#0F1114] text-[#1F2328] dark:text-[#F1F3F5]">
+    <div className="min-h-screen flex bg-theme-canvas text-[#1F2328] dark:text-[#F1F3F5] transition-colors duration-300">
       {/* Mobile / Zoomed-in Drawer Backdrop */}
       {mobileOpen && (
         <div
@@ -271,22 +291,23 @@ export const AppShell: React.FC = () => {
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
           {visibleNav.map((item) => {
             const Icon = item.icon;
+            const navLabel = tr(item.label, item.labelEn);
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 onClick={() => setMobileOpen(false)}
-                title={collapsed ? item.label : undefined}
+                title={collapsed ? navLabel : undefined}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
                     isActive
-                      ? 'bg-[#E60012] text-white shadow-sm'
+                      ? 'bg-theme-primary text-white shadow-sm'
                       : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/80'
                   } ${collapsed ? 'justify-center px-2' : ''}`
                 }
               >
                 <Icon className="w-[18px] h-[18px] shrink-0" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                {!collapsed && <span className="truncate">{navLabel}</span>}
               </NavLink>
             );
           })}
@@ -298,7 +319,10 @@ export const AppShell: React.FC = () => {
               collapsed ? 'justify-center' : ''
             }`}
           >
-            <div className="w-8 h-8 rounded-lg bg-[#E60012] text-white flex items-center justify-center text-xs font-bold shrink-0">
+            <div
+              className="w-8 h-8 rounded-lg text-white flex items-center justify-center text-xs font-bold shrink-0"
+              style={{ backgroundColor: activePreset.primary }}
+            >
               {user.avatarInitials}
             </div>
             {!collapsed && (
@@ -331,13 +355,13 @@ export const AppShell: React.FC = () => {
                 HR Dept. · PT Ajinomoto Indonesia - PT Ajinex International, Mojokerto Factory
               </div>
               <h1 className="text-sm sm:text-base font-bold truncate font-display">
-                {activeNav?.label || 'HR SupplyHub'}
+                {activeNav ? tr(activeNav.label, activeNav.labelEn) : 'HR SupplyHub'}
               </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <div className="hidden md:flex items-center gap-1.5 pr-1">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+            <div className="hidden 2xl:flex items-center gap-1.5 pr-1">
               <AjiuLogoBadge size="sm" />
               <HseLogoBadge size="sm" />
             </div>
@@ -346,24 +370,19 @@ export const AppShell: React.FC = () => {
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               <Search className="w-4 h-4 text-neutral-400" />
-              <span className="hidden md:inline">Cari item, kode, laporan...</span>
+              <span className="hidden lg:inline">
+                {tr('Cari item, kode, laporan...', 'Search items, codes, reports...')}
+              </span>
               <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-[10px] font-mono-num">
                 Ctrl+K
               </kbd>
             </button>
 
-            {/* Theme Toggle */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label="Ubah tema terang atau gelap"
-              className="p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
+            {/* Theme Palette, Language & Dark Mode Controls */}
+            <AppearanceControls compact />
 
             {/* Notifications */}
             <div className="relative">
@@ -373,12 +392,15 @@ export const AppShell: React.FC = () => {
                   setNotifOpen((v) => !v);
                   setProfileOpen(false);
                 }}
-                aria-label="Notifikasi"
-                className="relative p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                aria-label={tr('Notifikasi', 'Notifications')}
+                className="relative p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#E60012] text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-bold flex items-center justify-center tabular-nums"
+                    style={{ backgroundColor: activePreset.primary }}
+                  >
                     {unreadCount}
                   </span>
                 )}
@@ -387,20 +409,22 @@ export const AppShell: React.FC = () => {
               {notifOpen && (
                 <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] shadow-xl overflow-hidden z-50">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-200 dark:border-neutral-800">
-                    <span className="text-sm font-bold">Notifikasi ({unreadCount} baru)</span>
+                    <span className="text-sm font-bold">
+                      {tr(`Notifikasi (${unreadCount} baru)`, `Notifications (${unreadCount} new)`)}
+                    </span>
                     <button
                       type="button"
                       onClick={() => markAllNotificationsRead()}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-[#E60012] hover:underline"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-theme-primary hover:underline cursor-pointer"
                     >
                       <CheckCheck className="w-3.5 h-3.5" />
-                      Tandai dibaca
+                      {tr('Tandai dibaca', 'Mark all read')}
                     </button>
                   </div>
                   <div className="max-h-80 overflow-y-auto divide-y divide-neutral-100 dark:divide-neutral-800">
                     {userNotifications.length === 0 ? (
                       <div className="p-6 text-center text-xs text-neutral-500">
-                        Belum ada notifikasi.
+                        {tr('Belum ada notifikasi.', 'No notifications yet.')}
                       </div>
                     ) : (
                       userNotifications.slice(0, 12).map((n) => (
@@ -412,9 +436,12 @@ export const AppShell: React.FC = () => {
                             setNotifOpen(false);
                             navigate(n.linkTo);
                           }}
-                          className={`w-full text-left px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors ${
-                            !n.read ? 'bg-[#E60012]/[0.03]' : ''
-                          }`}
+                          style={
+                            !n.read
+                              ? { backgroundColor: 'rgba(var(--brand-primary-rgb), 0.045)' }
+                              : undefined
+                          }
+                          className="w-full text-left px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors cursor-pointer"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-semibold text-[#1F2328] dark:text-neutral-100">
@@ -443,9 +470,12 @@ export const AppShell: React.FC = () => {
                   setProfileOpen((v) => !v);
                   setNotifOpen(false);
                 }}
-                className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+                className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >
-                <div className="w-7 h-7 rounded-lg bg-[#E60012] text-white text-xs font-bold flex items-center justify-center">
+                <div
+                  className="w-7 h-7 rounded-lg text-white text-xs font-bold flex items-center justify-center"
+                  style={{ backgroundColor: activePreset.primary }}
+                >
                   {user.avatarInitials}
                 </div>
                 <div className="hidden sm:block text-left">
@@ -472,18 +502,18 @@ export const AppShell: React.FC = () => {
                       setProfileOpen(false);
                       navigate('/app/settings');
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
                   >
                     <UserIcon className="w-4 h-4 text-neutral-500" />
-                    Profil &amp; Pengaturan
+                    {tr('Profil & Pengaturan', 'Profile & Settings')}
                   </button>
                   <button
                     type="button"
                     onClick={handleResetDemo}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors cursor-pointer"
                   >
                     <RotateCcw className="w-4 h-4" />
-                    Reset Data Demo
+                    {tr('Reset Data Demo', 'Reset Demo Data')}
                   </button>
                   <button
                     type="button"
@@ -491,10 +521,10 @@ export const AppShell: React.FC = () => {
                       logout();
                       navigate('/login');
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
                   >
                     <LogOut className="w-4 h-4" />
-                    Keluar dari Sistem
+                    {tr('Keluar dari Sistem', 'Sign Out')}
                   </button>
                 </div>
               )}
@@ -525,7 +555,10 @@ export const AppShell: React.FC = () => {
                 autoFocus
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Ketik nama item, kode barang, Part_Id, atau ID laporan..."
+                placeholder={tr(
+                  'Ketik nama item, kode barang, Part_Id, atau ID laporan...',
+                  'Type item name, code, Part_Id, or report ID...'
+                )}
                 className="flex-1 bg-transparent text-sm focus:outline-none"
               />
               <button
@@ -539,7 +572,7 @@ export const AppShell: React.FC = () => {
             <div className="max-h-[420px] overflow-y-auto p-3 space-y-4">
               <div>
                 <div className="px-2 text-[11px] font-semibold text-neutral-400 mb-1.5">
-                  Master Item ({globalResults.items.length})
+                  {tr('Master Item', 'Item Master')} ({globalResults.items.length})
                 </div>
                 <div className="space-y-1">
                   {globalResults.items.map((item) => (
@@ -569,7 +602,7 @@ export const AppShell: React.FC = () => {
 
               <div>
                 <div className="px-2 text-[11px] font-semibold text-neutral-400 mb-1.5">
-                  Laporan Bulanan ({globalResults.reports.length})
+                  {tr('Laporan Bulanan', 'Monthly Reports')} ({globalResults.reports.length})
                 </div>
                 <div className="space-y-1">
                   {globalResults.reports.map((rep) => (
@@ -598,7 +631,7 @@ export const AppShell: React.FC = () => {
 
               <div>
                 <div className="px-2 text-[11px] font-semibold text-neutral-400 mb-1.5">
-                  Inventaris Overhead ({globalResults.inventories.length})
+                  {tr('Inventaris Overhead', 'Overhead Inventory')} ({globalResults.inventories.length})
                 </div>
                 <div className="space-y-1">
                   {globalResults.inventories.map((inv) => (
@@ -612,13 +645,14 @@ export const AppShell: React.FC = () => {
                       className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs"
                     >
                       <div>
-                        <span className="font-mono-num font-semibold text-[#E60012] mr-2">
+                        <span className="font-mono-num font-semibold text-theme-primary mr-2">
                           {inv.partId}
                         </span>
                         <span className="font-semibold">{inv.itemName}</span>
                       </div>
                       <span className="font-mono-num">
-                        {inv.qty} {inv.uom} · {inv.condition === 'BAGUS' ? 'Bagus' : 'Rusak'}
+                        {inv.qty} {inv.uom} ·{' '}
+                        {inv.condition === 'BAGUS' ? tr('Bagus', 'Good') : tr('Rusak', 'Damaged')}
                       </span>
                     </button>
                   ))}

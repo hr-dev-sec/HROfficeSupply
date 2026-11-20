@@ -29,7 +29,9 @@ import {
 import { CountUp } from '../components/common/CountUp';
 import { ReportStepper } from '../components/common/ReportStepper';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
+import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import type { ReportType } from '../types';
 import {
@@ -37,8 +39,6 @@ import {
   formatPeriodShort,
   getStageLabel,
 } from '../utils/format';
-
-const CHART_COLORS = ['#E60012', '#C9A24B', '#1F2328', '#0284C7', '#16A34A', '#64748B'];
 
 const STORAGE_CELLS = [
   { key: 'Lemari 5 Baris 1', cabinet: 'Lemari 5', row: 'Baris 1' },
@@ -56,8 +56,12 @@ const STORAGE_CELLS = [
 export const DashboardPage: React.FC = () => {
   const { user, canEditOperational } = useAuth();
   const { store, updateForecastRow } = useSupplyHub();
+  const { activePreset } = useTheme();
+  const { tr } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const chartColors = activePreset.chartPalette;
 
   const [selectedPeriod, setSelectedPeriod] = useState('2026-09');
   const [selectedReportType, setSelectedReportType] = useState<ReportType>('OFFICE_SUPPLIES');
@@ -152,8 +156,8 @@ export const DashboardPage: React.FC = () => {
     if (sorted.length <= 5) return sorted;
     const top5 = sorted.slice(0, 5);
     const rest = sorted.slice(5).reduce((s, r) => s + r.value, 0);
-    return [...top5, { name: 'Lainnya', value: rest }];
-  }, [activeItems]);
+    return [...top5, { name: tr('Lainnya', 'Others'), value: rest }];
+  }, [activeItems, tr]);
 
   // Horizontal Bar: Top 10 Usage Items
   const top10Usage = useMemo(() => {
@@ -237,9 +241,12 @@ export const DashboardPage: React.FC = () => {
     );
     if (!match) {
       toast(
-        'Item belum ada di daftar GA',
+        tr('Item belum ada di daftar GA', 'Item not yet in GA list'),
         'info',
-        `Silakan tambahkan "${item.itemName}" di menu Rolling Forecast GA.`
+        tr(
+          `Silakan tambahkan "${item.itemName}" di menu Rolling Forecast GA.`,
+          `Please add "${item.itemName}" in the GA Rolling Forecast menu.`
+        )
       );
       navigate('/app/forecast');
       return;
@@ -253,9 +260,12 @@ export const DashboardPage: React.FC = () => {
       user
     );
     toast(
-      `Forecast ${activeForecastMonth} diperbarui`,
+      tr(`Forecast ${activeForecastMonth} diperbarui`, `${activeForecastMonth} forecast updated`),
       'success',
-      `${match.itemName}: ${qty} ${match.uom} siap dikirim ke GA Dept.`
+      tr(
+        `${match.itemName}: ${qty} ${match.uom} siap dikirim ke GA Dept.`,
+        `${match.itemName}: ${qty} ${match.uom} ready for GA Dept.`
+      )
     );
   };
 
@@ -265,10 +275,13 @@ export const DashboardPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold font-display tracking-tight">
-            Ikhtisar Persediaan &amp; Persetujuan HR
+            {tr('Ikhtisar Persediaan & Persetujuan HR', 'HR Inventory & Approval Overview')}
           </h2>
           <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Pantau stok Office Supplies, Overhead Goods, kesiapan opname, dan status tanda tangan.
+            {tr(
+              'Pantau stok Office Supplies, Overhead Goods, kesiapan opname, dan status tanda tangan.',
+              'Monitor Office Supplies, Overhead Goods, opname readiness, and approval signature status.'
+            )}
           </p>
         </div>
 
@@ -276,12 +289,12 @@ export const DashboardPage: React.FC = () => {
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
-            aria-label="Filter periode bulan"
+            aria-label={tr('Filter periode bulan', 'Filter monthly period')}
             className="px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold"
           >
             {availablePeriods.map((p) => (
               <option key={p} value={p}>
-                Periode {formatPeriodShort(p)}
+                {tr('Periode', 'Period')} {formatPeriodShort(p)}
               </option>
             ))}
           </select>
@@ -291,14 +304,14 @@ export const DashboardPage: React.FC = () => {
               [
                 { id: 'OFFICE_SUPPLIES', label: 'Office Supplies' },
                 { id: 'OVERHEAD_GOODS', label: 'Overhead Goods' },
-                { id: 'INVENTARIS_OVERHEAD', label: 'Inventaris' },
+                { id: 'INVENTARIS_OVERHEAD', label: tr('Inventaris', 'Inventory') },
               ] as Array<{ id: ReportType; label: string }>
             ).map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setSelectedReportType(tab.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                   selectedReportType === tab.id
                     ? 'bg-white dark:bg-[#171A1F] text-[#1F2328] dark:text-white shadow-sm'
                     : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
@@ -315,68 +328,71 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
           <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400">
-            <span className="text-xs font-medium">Total Item Aktif</span>
-            <Package className="w-4 h-4 text-[#E60012]" />
+            <span className="text-xs font-medium">{tr('Total Item Aktif', 'Active Items')}</span>
+            <Package className="w-4 h-4 text-theme-primary" />
           </div>
           <div className="text-2xl font-extrabold font-display mt-2">
             <CountUp value={activeItems.length} />
           </div>
           <div className="text-[11px] text-neutral-500 mt-1">
-            {store.inventories.length} aset inventaris Overhead
+            {store.inventories.length} {tr('aset inventaris Overhead', 'Overhead inventory assets')}
           </div>
         </div>
 
         <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
           <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400">
-            <span className="text-xs font-medium">Di Bawah Minimum</span>
+            <span className="text-xs font-medium">{tr('Di Bawah Minimum', 'Below Minimum')}</span>
             <AlertTriangle className="w-4 h-4 text-amber-600" />
           </div>
           <div className="text-2xl font-extrabold font-display text-amber-600 dark:text-amber-400 mt-2">
             <CountUp value={criticalItems.length} />
           </div>
-          <div className="text-[11px] text-neutral-500 mt-1">Perlu update forecast GA</div>
+          <div className="text-[11px] text-neutral-500 mt-1">
+            {tr('Perlu update forecast GA', 'Needs GA forecast update')}
+          </div>
         </div>
 
         <button
           type="button"
           onClick={() => navigate('/app/forecast')}
-          className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] text-left hover:border-[#C9A24B]/60 transition-colors cursor-pointer"
+          className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] text-left hover:border-theme-primary transition-colors cursor-pointer"
         >
           <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400">
-            <span className="text-xs font-medium">Rolling Forecast GA</span>
-            <CalendarRange className="w-4 h-4 text-[#C9A24B]" />
+            <span className="text-xs font-medium">{tr('Rolling Forecast GA', 'GA Rolling Forecast')}</span>
+            <CalendarRange className="w-4 h-4 text-theme-accent" />
           </div>
           <div className="text-2xl font-extrabold font-display mt-2">
             <CountUp value={forecastSummary.totalUnits} />
           </div>
           <div className="text-[11px] text-neutral-500 mt-1 truncate">
-            {activeForecastMonth} · {forecastSummary.filledCount} item diajukan
+            {activeForecastMonth} · {forecastSummary.filledCount}{' '}
+            {tr('item diajukan', 'items submitted')}
           </div>
         </button>
 
         <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
           <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400">
-            <span className="text-xs font-medium">Pemakaian Periode</span>
+            <span className="text-xs font-medium">{tr('Pemakaian Periode', 'Period Usage')}</span>
             <TrendingDown className="w-4 h-4 text-sky-600" />
           </div>
           <div className="text-2xl font-extrabold font-display mt-2">
             <CountUp value={monthlyUsageQty} />
           </div>
           <div className="text-[11px] text-neutral-500 mt-1">
-            Total unit keluar ({formatPeriodShort(selectedPeriod)})
+            {tr('Total unit keluar', 'Total units issued')} ({formatPeriodShort(selectedPeriod)})
           </div>
         </div>
 
         <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
           <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400">
-            <span className="text-xs font-medium">Status Laporan</span>
+            <span className="text-xs font-medium">{tr('Status Laporan', 'Report Status')}</span>
             <FileCheck2 className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-xl font-extrabold font-display mt-2 text-emerald-700 dark:text-emerald-400">
-            {activeReport ? getStageLabel(activeReport.status) : 'Belum Ada'}
+            {activeReport ? getStageLabel(activeReport.status) : tr('Belum Ada', 'Not Created')}
           </div>
           <div className="text-[11px] text-neutral-500 mt-1 truncate">
-            {activeReport ? activeReport.documentId : 'Buat laporan periode ini'}
+            {activeReport ? activeReport.documentId : tr('Buat laporan periode ini', 'Create period report')}
           </div>
         </div>
       </div>
@@ -386,36 +402,47 @@ export const DashboardPage: React.FC = () => {
         <div className="xl:col-span-8 min-w-0 p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="text-sm font-bold">Progres Pengesahan Laporan Bulanan</h3>
+              <h3 className="text-sm font-bold">
+                {tr('Progres Pengesahan Laporan Bulanan', 'Monthly Report Approval Progress')}
+              </h3>
               <p className="text-xs text-neutral-500 mt-0.5 truncate">
-                {activeReport ? `${activeReport.title} (${activeReport.periodLabel})` : 'Belum ada laporan'}
+                {activeReport
+                  ? `${activeReport.title} (${activeReport.periodLabel})`
+                  : tr('Belum ada laporan', 'No report yet')}
               </p>
             </div>
             <button
               type="button"
               onClick={() => navigate('/app/reports')}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#E60012] hover:underline whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-theme-primary hover:underline whitespace-nowrap cursor-pointer"
             >
-              Buka Laporan
+              {tr('Buka Laporan', 'Open Reports')}
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
           {activeReport ? (
             <ReportStepper report={activeReport} />
           ) : (
-            <p className="text-xs text-neutral-500">Tidak ada laporan pada periode ini.</p>
+            <p className="text-xs text-neutral-500">
+              {tr('Tidak ada laporan pada periode ini.', 'No report found for this period.')}
+            </p>
           )}
         </div>
 
         <div className="xl:col-span-4 min-w-0 p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] flex flex-col justify-between space-y-4">
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold">Menunggu Tanda Tangan Saya</h3>
-              <PenTool className="w-4 h-4 text-[#E60012]" />
+              <h3 className="text-sm font-bold">
+                {tr('Menunggu Tanda Tangan Saya', 'Awaiting My Signature')}
+              </h3>
+              <PenTool className="w-4 h-4 text-theme-primary" />
             </div>
             {pendingForMe.length === 0 ? (
               <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-                Tidak ada dokumen yang menunggu tanda tangan Anda saat ini.
+                {tr(
+                  'Tidak ada dokumen yang menunggu tanda tangan Anda saat ini.',
+                  'There are currently no documents awaiting your signature.'
+                )}
               </p>
             ) : (
               <div className="space-y-2">
@@ -424,7 +451,7 @@ export const DashboardPage: React.FC = () => {
                     key={idx}
                     type="button"
                     onClick={() => navigate('/app/signatures')}
-                    className="w-full text-left p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-[#E60012] transition-colors"
+                    className="w-full text-left p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:border-theme-primary transition-colors cursor-pointer"
                   >
                     <div className="text-xs font-bold truncate">{p.title}</div>
                     <div className="text-[11px] text-neutral-500 mt-0.5">
@@ -438,9 +465,12 @@ export const DashboardPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/app/signatures')}
-            className="w-full py-2.5 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold transition-colors"
+            className="w-full py-2.5 rounded-xl bg-theme-primary text-white text-xs font-semibold transition-colors cursor-pointer"
           >
-            Buka Antrean Tanda Tangan ({pendingForMe.length})
+            {tr(
+              `Buka Antrean Tanda Tangan (${pendingForMe.length})`,
+              `Open Signature Queue (${pendingForMe.length})`
+            )}
           </button>
         </div>
       </div>
@@ -450,8 +480,15 @@ export const DashboardPage: React.FC = () => {
         <div className="xl:col-span-8 min-w-0 p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-bold">Tren Terima vs Pakai (12 Bulan)</h3>
-              <p className="text-xs text-neutral-500">Perbandingan volume barang masuk dan keluar</p>
+              <h3 className="text-sm font-bold">
+                {tr('Tren Terima vs Pakai (12 Bulan)', 'Received vs Usage Trend (12 Months)')}
+              </h3>
+              <p className="text-xs text-neutral-500">
+                {tr(
+                  'Perbandingan volume barang masuk dan keluar',
+                  'Comparison of inbound and outbound supply volume'
+                )}
+              </p>
             </div>
           </div>
           <div className="h-64 min-w-0">
@@ -463,8 +500,8 @@ export const DashboardPage: React.FC = () => {
                     <stop offset="95%" stopColor="#16A34A" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="gradPakai" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#E60012" stopOpacity={0.28} />
-                    <stop offset="95%" stopColor="#E60012" stopOpacity={0} />
+                    <stop offset="5%" stopColor={activePreset.primary} stopOpacity={0.28} />
+                    <stop offset="95%" stopColor={activePreset.primary} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.18} />
@@ -474,7 +511,7 @@ export const DashboardPage: React.FC = () => {
                 <Area
                   type="monotone"
                   dataKey="terima"
-                  name="Terima"
+                  name={tr('Terima', 'Received')}
                   stroke="#16A34A"
                   strokeWidth={2}
                   fill="url(#gradTerima)"
@@ -482,8 +519,8 @@ export const DashboardPage: React.FC = () => {
                 <Area
                   type="monotone"
                   dataKey="pakai"
-                  name="Pakai"
-                  stroke="#E60012"
+                  name={tr('Pakai', 'Used')}
+                  stroke={activePreset.primary}
                   strokeWidth={2}
                   fill="url(#gradPakai)"
                 />
@@ -493,8 +530,12 @@ export const DashboardPage: React.FC = () => {
         </div>
 
         <div className="xl:col-span-4 min-w-0 p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
-          <h3 className="text-sm font-bold mb-1">Komposisi Stok per Kategori</h3>
-          <p className="text-xs text-neutral-500 mb-3">Distribusi unit tersedia saat ini</p>
+          <h3 className="text-sm font-bold mb-1">
+            {tr('Komposisi Stok per Kategori', 'Stock Composition by Category')}
+          </h3>
+          <p className="text-xs text-neutral-500 mb-3">
+            {tr('Distribusi unit tersedia saat ini', 'Current available unit distribution')}
+          </p>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -507,7 +548,7 @@ export const DashboardPage: React.FC = () => {
                   paddingAngle={2}
                 >
                   {categoryDonut.map((_, index) => (
-                    <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    <Cell key={index} fill={chartColors[index % chartColors.length]} />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -520,7 +561,7 @@ export const DashboardPage: React.FC = () => {
                 <span className="flex items-center gap-1.5 truncate">
                   <span
                     className="w-2.5 h-2.5 rounded-sm shrink-0"
-                    style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}
+                    style={{ backgroundColor: chartColors[idx % chartColors.length] }}
                   />
                   <span className="truncate">{c.name}</span>
                 </span>
@@ -534,8 +575,12 @@ export const DashboardPage: React.FC = () => {
       {/* Top 10 Horizontal Bar & Storage Heatmap */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
         <div className="xl:col-span-6 min-w-0 p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
-          <h3 className="text-sm font-bold mb-1">Item dengan Pemakaian Terbesar</h3>
-          <p className="text-xs text-neutral-500 mb-4">Akumulasi kuantitas pemakaian tercatat</p>
+          <h3 className="text-sm font-bold mb-1">
+            {tr('Item dengan Pemakaian Terbesar', 'Top Consumed Items')}
+          </h3>
+          <p className="text-xs text-neutral-500 mb-4">
+            {tr('Akumulasi kuantitas pemakaian tercatat', 'Accumulated recorded usage quantities')}
+          </p>
           <div className="h-64 min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={top10Usage} layout="vertical" margin={{ left: 6, right: 16 }}>
@@ -543,7 +588,12 @@ export const DashboardPage: React.FC = () => {
                 <XAxis type="number" tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="name" width={118} tick={{ fontSize: 11 }} />
                 <Tooltip />
-                <Bar dataKey="qty" name="Total Pakai" fill="#E60012" radius={[0, 6, 6, 0]} />
+                <Bar
+                  dataKey="qty"
+                  name={tr('Total Pakai', 'Total Used')}
+                  fill={activePreset.primary}
+                  radius={[0, 6, 6, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -553,41 +603,46 @@ export const DashboardPage: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-bold flex items-center gap-2">
-                <Boxes className="w-4 h-4 text-[#C9A24B]" />
-                Heatmap Penyimpanan Lemari &amp; Cabinet
+                <Boxes className="w-4 h-4 text-theme-accent" />
+                {tr('Heatmap Penyimpanan Lemari & Cabinet', 'Cabinet & Locker Storage Heatmap')}
               </h3>
               <p className="text-xs text-neutral-500">
-                Pemetaan Lemari 5, 6, 7 &amp; Cabinet 5, 6 (Baris 1 &amp; 2)
+                {tr(
+                  'Pemetaan Lemari 5, 6, 7 & Cabinet 5, 6 (Baris 1 & 2)',
+                  'Mapping of Lemari 5, 6, 7 & Cabinet 5, 6 (Rows 1 & 2)'
+                )}
               </p>
             </div>
             <div className="flex items-center p-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-[11px]">
               <button
                 type="button"
                 onClick={() => setHeatmapMode('COUNT')}
-                className={`px-2.5 py-1 rounded-md font-semibold ${
+                className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
                   heatmapMode === 'COUNT'
                     ? 'bg-white dark:bg-[#171A1F] shadow-sm'
                     : 'text-neutral-500'
                 }`}
               >
-                Jumlah Item
+                {tr('Jumlah Item', 'Item Count')}
               </button>
               <button
                 type="button"
                 onClick={() => setHeatmapMode('CRITICAL')}
-                className={`px-2.5 py-1 rounded-md font-semibold ${
+                className={`px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
                   heatmapMode === 'CRITICAL'
                     ? 'bg-white dark:bg-[#171A1F] shadow-sm'
                     : 'text-neutral-500'
                 }`}
               >
-                Tingkat Kritis
+                {tr('Tingkat Kritis', 'Critical Level')}
               </button>
             </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
             {heatmapCells.map((cell) => {
+              const isHighCount = heatmapMode === 'COUNT' && cell.totalItems >= 15;
+              const isMedCount = heatmapMode === 'COUNT' && cell.totalItems >= 6 && cell.totalItems < 15;
               const bgClass =
                 heatmapMode === 'CRITICAL'
                   ? cell.critCount >= 4
@@ -595,15 +650,26 @@ export const DashboardPage: React.FC = () => {
                     : cell.critCount >= 1
                     ? 'bg-amber-500/15 border-amber-400 dark:border-amber-700'
                     : 'bg-emerald-500/10 border-emerald-300 dark:border-emerald-800'
-                  : cell.totalItems >= 15
-                  ? 'bg-[#E60012]/15 border-[#E60012]/40'
-                  : cell.totalItems >= 6
-                  ? 'bg-[#C9A24B]/15 border-[#C9A24B]/40'
+                  : isHighCount || isMedCount
+                  ? ''
                   : 'bg-neutral-100 dark:bg-neutral-800/70 border-neutral-200 dark:border-neutral-700';
+
+              const dynamicStyle = isHighCount
+                ? {
+                    backgroundColor: 'rgba(var(--brand-primary-rgb), 0.14)',
+                    borderColor: 'rgba(var(--brand-primary-rgb), 0.4)',
+                  }
+                : isMedCount
+                ? {
+                    backgroundColor: 'rgba(var(--brand-accent-rgb), 0.15)',
+                    borderColor: 'rgba(var(--brand-accent-rgb), 0.42)',
+                  }
+                : undefined;
 
               return (
                 <div
                   key={cell.key}
+                  style={dynamicStyle}
                   className={`p-3 rounded-xl border transition-colors ${bgClass}`}
                 >
                   <div className="text-[11px] font-bold">{cell.cabinet}</div>
@@ -614,7 +680,9 @@ export const DashboardPage: React.FC = () => {
                     {heatmapMode === 'CRITICAL' ? cell.critCount : cell.totalItems}
                   </div>
                   <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                    {heatmapMode === 'CRITICAL' ? 'item kritis' : `item (${cell.totalStock} unit)`}
+                    {heatmapMode === 'CRITICAL'
+                      ? tr('item kritis', 'critical items')
+                      : `${tr('item', 'items')} (${cell.totalStock} ${tr('unit', 'units')})`}
                   </div>
                 </div>
               );
@@ -626,19 +694,24 @@ export const DashboardPage: React.FC = () => {
       {/* Critical Stock Table + Recent Activity Timeline */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
         <div className="xl:col-span-7 min-w-0 p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <h3 className="text-sm font-bold">Peringatan Stok Kritis</h3>
+              <h3 className="text-sm font-bold">
+                {tr('Peringatan Stok Kritis', 'Critical Stock Alerts')}
+              </h3>
               <p className="text-xs text-neutral-500">
-                Item dengan Stock Akhir ≤ Minimum Stok ({criticalItems.length} item)
+                {tr(
+                  `Item dengan Stock Akhir ≤ Minimum Stok (${criticalItems.length} item)`,
+                  `Items with Ending Stock ≤ Minimum Stock (${criticalItems.length} items)`
+                )}
               </p>
             </div>
             <button
               type="button"
               onClick={() => navigate('/app/forecast')}
-              className="text-xs font-semibold text-[#E60012] hover:underline"
+              className="text-xs font-semibold text-theme-primary hover:underline whitespace-nowrap cursor-pointer"
             >
-              Kelola Rolling Forecast GA
+              {tr('Kelola Rolling Forecast GA', 'Manage GA Forecast')}
             </button>
           </div>
 
@@ -646,11 +719,13 @@ export const DashboardPage: React.FC = () => {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-neutral-200 dark:border-neutral-800 text-left text-neutral-500">
-                  <th className="py-2 pr-3 font-semibold">Item</th>
-                  <th className="py-2 px-2 font-semibold text-right">Stok</th>
+                  <th className="py-2 pr-3 font-semibold">{tr('Item', 'Item')}</th>
+                  <th className="py-2 px-2 font-semibold text-right">{tr('Stok', 'Stock')}</th>
                   <th className="py-2 px-2 font-semibold text-right">Min</th>
-                  <th className="py-2 px-2 font-semibold">Lokasi</th>
-                  {canEditOperational && <th className="py-2 pl-2 text-right font-semibold">Aksi</th>}
+                  <th className="py-2 px-2 font-semibold">{tr('Lokasi', 'Location')}</th>
+                  {canEditOperational && (
+                    <th className="py-2 pl-2 text-right font-semibold">{tr('Aksi', 'Action')}</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -662,7 +737,7 @@ export const DashboardPage: React.FC = () => {
                         {item.codeItem || '-'} · {item.kategori}
                       </div>
                     </td>
-                    <td className="py-2.5 px-2 text-right font-mono-num font-bold text-[#E60012]">
+                    <td className="py-2.5 px-2 text-right font-mono-num font-bold text-theme-primary">
                       {item.currentStock} {item.uom}
                     </td>
                     <td className="py-2.5 px-2 text-right font-mono-num text-neutral-500">
@@ -676,10 +751,10 @@ export const DashboardPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleQuickAddForecast(item.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#E60012]/10 text-[#E60012] hover:bg-[#E60012] hover:text-white text-[11px] font-semibold transition-colors whitespace-nowrap"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-theme-primary text-theme-primary hover:bg-theme-primary hover:text-white text-[11px] font-semibold transition-colors whitespace-nowrap cursor-pointer"
                         >
                           <Send className="w-3 h-3" />
-                          Ajukan ke RF {activeForecastMonth}
+                          {tr(`Ajukan ke RF ${activeForecastMonth}`, `Add to RF ${activeForecastMonth}`)}
                         </button>
                       </td>
                     )}
@@ -692,7 +767,9 @@ export const DashboardPage: React.FC = () => {
 
         <div className="xl:col-span-5 min-w-0 p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold">Timeline Aktivitas Terbaru</h3>
+            <h3 className="text-sm font-bold">
+              {tr('Timeline Aktivitas Terbaru', 'Recent Activity Timeline')}
+            </h3>
             <Clock className="w-4 h-4 text-neutral-400" />
           </div>
           <div className="space-y-3">
@@ -706,7 +783,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div className="min-w-0 flex-1 text-xs">
                   <div className="font-semibold truncate">
-                    {log.userName} · <span className="text-[#E60012]">{log.action}</span>
+                    {log.userName} · <span className="text-theme-primary">{log.action}</span>
                   </div>
                   <div className="text-neutral-600 dark:text-neutral-400 truncate">
                     {log.objectType}: {log.objectLabel}
