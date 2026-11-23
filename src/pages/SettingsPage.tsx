@@ -1,8 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
+  Activity,
+  AlertCircle,
   ArrowRightLeft,
   Check,
+  CheckCircle2,
   Clock,
+  CloudDownload,
   CloudUpload,
   Database,
   Download,
@@ -11,6 +16,7 @@ import {
   EyeOff,
   FileCode2,
   Globe,
+  HardDrive,
   Palette,
   RefreshCw,
   RotateCcw,
@@ -34,7 +40,7 @@ import { COLOR_THEMES, useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { processAndUploadImage } from '../services/mediaStorageService';
 import type { User, UserRole } from '../types';
-import { getRoleLabel } from '../utils/format';
+import { formatDateTimeIndo, getRoleLabel } from '../utils/format';
 import {
   downloadTextFile,
   generateCurrentStoreSeedSql,
@@ -73,12 +79,17 @@ function buildInitials(name: string): string {
 }
 
 export const SettingsPage: React.FC = () => {
-  const { user, isSuperAdmin, sessionTimeoutMinutes, setSessionTimeoutMinutes } = useAuth();
+  const { user, isSuperAdmin, canEditOperational, sessionTimeoutMinutes, setSessionTimeoutMinutes } =
+    useAuth();
   const {
     store,
     isSupabaseConnected,
+    supabaseHost,
     syncStatus,
+    lastHealthReport,
+    testSupabaseConnection,
     syncAllToSupabase,
+    replaceSupabaseFromLocal,
     refreshFromSupabase,
     updateSettings,
     upsertUser,
@@ -91,11 +102,22 @@ export const SettingsPage: React.FC = () => {
   const { theme, setTheme, colorTheme, setColorTheme, activePreset } = useTheme();
   const { language, setLanguage, tr } = useLanguage();
   const { toast } = useToast();
+  const location = useLocation();
 
   const [settingsForm, setSettingsForm] = useState(store.settings);
   useEffect(() => {
     setSettingsForm(store.settings);
   }, [store.settings]);
+
+  useEffect(() => {
+    if (location.hash === '#supabase-control') {
+      const el = document.getElementById('supabase-control');
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+      }
+    }
+  }, [location.hash]);
+
   const [userSearch, setUserSearch] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
@@ -111,9 +133,13 @@ export const SettingsPage: React.FC = () => {
   // Konfirmasi Hapus Akun
   const [deleteTargetUser, setDeleteTargetUser] = useState<User | null>(null);
 
-  // Sync Supabase state
+  // Kontrol Database Supabase state
+  const [testingSupabase, setTestingSupabase] = useState(false);
   const [syncingSupabase, setSyncingSupabase] = useState(false);
   const [pullingSupabase, setPullingSupabase] = useState(false);
+  const [mirroringSupabase, setMirroringSupabase] = useState(false);
+  const [confirmMirrorOpen, setConfirmMirrorOpen] = useState(false);
+  const [showTableMatrix, setShowTableMatrix] = useState(true);
 
   const filteredUsers = useMemo(() => {
     const q = userSearch.trim().toLowerCase();
@@ -344,21 +370,71 @@ export const SettingsPage: React.FC = () => {
     setDeleteTargetUser(null);
   };
 
+  const handleTestSupabase = async () => {
+    setTestingSupabase(true);
+    const report = await testSupabaseConnection();
+    setTestingSupabase(false);
+    setShowTableMatrix(true);
+    if (report.connected && report.canWrite && report.summary.tablesOk === report.summary.tablesTotal) {
+      toast(
+        tr('Uji koneksi Supabase berhasil', 'Supabase connection test passed'),
+        'success',
+        tr(
+          `${report.summary.tablesOk}/${report.summary.tablesTotal} tabel · ${report.summary.bucketsOk}/${report.summary.bucketsTotal} bucket · Write OK (${report.latencyMs} ms)`,
+          `${report.summary.tablesOk}/${report.summary.tablesTotal} tables · ${report.summary.bucketsOk}/${report.summary.bucketsTotal} buckets · Write OK (${report.latencyMs} ms)`
+        )
+      );
+    } else {
+      toast(
+        tr('Uji koneksi mendeteksi kendala', 'Connection test detected issues'),
+        'error',
+        report.writeError ||
+          tr(
+            `${report.summary.tablesOk}/${report.summary.tablesTotal} tabel aktif.`,
+            `${report.summary.tablesOk}/${report.summary.tablesTotal} tables active.`
+          )
+      );
+    }
+  };
+
   const handlePushToSupabase = async () => {
     setSyncingSupabase(true);
     const res = await syncAllToSupabase();
     setSyncingSupabase(false);
     if (res.ok) {
       toast(
-        tr('Sinkronisasi Supabase berhasil', 'Supabase sync completed'),
+        tr('Push ke Supabase berhasil', 'Push to Supabase completed'),
         'success',
         tr(
-          'Seluruh akun, tabel sistem, dan foto telah tersimpan ke PostgreSQL & Storage Supabase.',
-          'All accounts, system tables, and media have been synced to Supabase PostgreSQL & Storage.'
+          'Seluruh akun, tabel sistem, foto & dokumen telah dikirim ke Supabase.',
+          'All accounts, system tables, photos & documents have been pushed to Supabase.'
         )
       );
+      if (lastHealthReport) {
+        void testSupabaseConnection();
+      }
     } else {
-      toast(tr('Sinkronisasi Supabase gagal', 'Supabase sync failed'), 'error', res.error);
+      toast(tr('Push ke Supabase gagal', 'Push to Supabase failed'), 'error', res.error);
+    }
+  };
+
+  const handleMirrorToSupabase = async () => {
+    setConfirmMirrorOpen(false);
+    setMirroringSupabase(true);
+    const res = await replaceSupabaseFromLocal();
+    setMirroringSupabase(false);
+    if (res.ok) {
+      toast(
+        tr('Sinkron cermin (Replace Cloud) selesai', 'Mirror sync (Replace Cloud) completed'),
+        'success',
+        tr(
+          'Data Supabase kini identik dengan data lokal dan baris lama yang dihapus telah dibersihkan.',
+          'Supabase now mirrors local data and removed orphan rows have been cleaned up.'
+        )
+      );
+      void testSupabaseConnection();
+    } else {
+      toast(tr('Sinkron cermin gagal', 'Mirror sync failed'), 'error', res.error);
     }
   };
 
@@ -368,16 +444,25 @@ export const SettingsPage: React.FC = () => {
     setPullingSupabase(false);
     if (ok) {
       toast(
-        tr('Data terbaru berhasil dimuat dari Supabase', 'Latest data loaded from Supabase'),
-        'success'
+        tr('Pull dari Supabase berhasil', 'Pull from Supabase succeeded'),
+        'success',
+        tr(
+          'Seluruh data terbaru dari PostgreSQL Supabase telah dimuat ke sistem.',
+          'All latest records from Supabase PostgreSQL have been loaded.'
+        )
       );
+      if (lastHealthReport) {
+        void testSupabaseConnection();
+      }
     } else {
       toast(
-        tr('Gagal memuat data dari Supabase', 'Failed to load data from Supabase'),
+        tr('Gagal menarik data dari Supabase', 'Failed to pull data from Supabase'),
         'error'
       );
     }
   };
+
+  const dbAnyBusy = testingSupabase || syncingSupabase || pullingSupabase || mirroringSupabase;
 
   const totalPhotosCount =
     store.items.filter((i) => Boolean(i.photoUrl)).length +
@@ -947,111 +1032,426 @@ export const SettingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Draft Database & Integrasi Supabase (Super Admin) */}
-      {isSuperAdmin && (
-        <div className="p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold flex items-center gap-2">
-                <Database className="w-4 h-4 text-theme-primary" />
+      {/* Pusat Kontrol Database Supabase (Uji Koneksi, Pull, Push, Mirror & SQL) */}
+      <div
+        id="supabase-control"
+        className="p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-5 scroll-mt-20"
+      >
+        {/* Header Status Koneksi */}
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
+                <Database
+                  className={`w-4 h-4 ${
+                    !isSupabaseConnected
+                      ? 'text-amber-600'
+                      : syncStatus.state === 'error'
+                      ? 'text-red-600'
+                      : 'text-emerald-600'
+                  }`}
+                />
                 {tr(
-                  'Draft Database & Kesiapan Integrasi Supabase (PostgreSQL + Storage)',
-                  'Database Schema & Supabase Integration (PostgreSQL + Storage)'
+                  'Pusat Kontrol Database Supabase (PostgreSQL + Storage)',
+                  'Supabase Database Control Center (PostgreSQL + Storage)'
                 )}
               </h3>
-              <p className="text-xs text-neutral-500 mt-1 max-w-3xl leading-relaxed">
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[11px] font-bold border ${
+                  !isSupabaseConnected
+                    ? 'border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400'
+                    : syncStatus.state === 'error'
+                    ? 'border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400'
+                    : syncStatus.state === 'syncing' || dbAnyBusy
+                    ? 'border-sky-300 dark:border-sky-800 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-400'
+                    : 'border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    !isSupabaseConnected
+                      ? 'bg-amber-500'
+                      : syncStatus.state === 'error'
+                      ? 'bg-red-500'
+                      : syncStatus.state === 'syncing' || dbAnyBusy
+                      ? 'bg-sky-500 animate-pulse'
+                      : 'bg-emerald-500'
+                  }`}
+                />
+                {!isSupabaseConnected
+                  ? tr('Mode Lokal', 'Local Mode')
+                  : syncStatus.state === 'error'
+                  ? tr('Gangguan Sinkronisasi', 'Sync Error')
+                  : syncStatus.state === 'syncing' || dbAnyBusy
+                  ? tr('Menyinkronkan...', 'Syncing...')
+                  : tr('Terhubung & Auto-Sync Aktif', 'Connected & Auto-Sync Active')}
+              </span>
+            </div>
+
+            <p className="text-xs text-neutral-500 max-w-3xl leading-relaxed">
+              {isSupabaseConnected ? (
+                <>
+                  {tr('Host aktif:', 'Active host:')}{' '}
+                  <code className="font-mono-num font-semibold text-neutral-700 dark:text-neutral-300">
+                    {supabaseHost}
+                  </code>
+                  {syncStatus.lastSyncedAt && (
+                    <>
+                      {' · '}
+                      {tr('Sinkron terakhir:', 'Last synced:')}{' '}
+                      <span className="font-mono-num">
+                        {formatDateTimeIndo(syncStatus.lastSyncedAt, language)}
+                      </span>
+                    </>
+                  )}
+                  {' · '}
+                  {tr(
+                    'Setiap perubahan data otomatis tersimpan ke database & realtime antar perangkat.',
+                    'Every change is automatically persisted to the database with cross-device realtime sync.'
+                  )}
+                </>
+              ) : (
+                tr(
+                  'Variabel VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY belum terpasang pada environment. Sistem saat ini menyimpan data pada browser lokal.',
+                  'VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY are not set in the environment. The system is currently storing data locally in the browser.'
+                )
+              )}
+            </p>
+          </div>
+        </div>
+
+        {/* Tombol Aksi Kontrol Database: Uji Koneksi, Pull, Push, Mirror */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5 text-xs">
+          <button
+            type="button"
+            disabled={!isSupabaseConnected || dbAnyBusy}
+            onClick={handleTestSupabase}
+            className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-neutral-200 dark:border-neutral-700 hover:border-theme-primary bg-neutral-50/70 dark:bg-[#0F1114] disabled:opacity-50 text-left transition cursor-pointer"
+          >
+            <div className="min-w-0">
+              <div className="font-bold flex items-center gap-1.5">
+                <Activity
+                  className={`w-4 h-4 text-theme-primary shrink-0 ${
+                    testingSupabase ? 'animate-pulse' : ''
+                  }`}
+                />
+                {testingSupabase
+                  ? tr('Menguji Koneksi...', 'Testing...')
+                  : tr('Uji Koneksi Database', 'Test Connection')}
+              </div>
+              <div className="text-[11px] text-neutral-500 mt-0.5 truncate">
+                {tr('Cek 19 tabel, 2 bucket & izin tulis', 'Check 19 tables, 2 buckets & write RLS')}
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            disabled={!isSupabaseConnected || dbAnyBusy}
+            onClick={handlePullFromSupabase}
+            className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-neutral-200 dark:border-neutral-700 hover:border-sky-500 bg-neutral-50/70 dark:bg-[#0F1114] disabled:opacity-50 text-left transition cursor-pointer"
+          >
+            <div className="min-w-0">
+              <div className="font-bold flex items-center gap-1.5">
+                <CloudDownload
+                  className={`w-4 h-4 text-sky-600 shrink-0 ${
+                    pullingSupabase ? 'animate-bounce' : ''
+                  }`}
+                />
+                {pullingSupabase
+                  ? tr('Menarik Data...', 'Pulling...')
+                  : tr('Pull dari Supabase', 'Pull from Supabase')}
+              </div>
+              <div className="text-[11px] text-neutral-500 mt-0.5 truncate">
+                {tr('Muat data terbaru Cloud → Aplikasi', 'Load latest Cloud → App data')}
+              </div>
+            </div>
+          </button>
+
+          {(isSuperAdmin || canEditOperational) && (
+            <button
+              type="button"
+              disabled={!isSupabaseConnected || dbAnyBusy}
+              onClick={handlePushToSupabase}
+              className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl bg-theme-primary bg-theme-primary-hover text-white disabled:opacity-50 text-left transition cursor-pointer"
+            >
+              <div className="min-w-0">
+                <div className="font-bold flex items-center gap-1.5">
+                  <CloudUpload
+                    className={`w-4 h-4 shrink-0 ${syncingSupabase ? 'animate-bounce' : ''}`}
+                  />
+                  {syncingSupabase
+                    ? tr('Mengirim Data...', 'Pushing...')
+                    : tr('Push ke Supabase', 'Push to Supabase')}
+                </div>
+                <div className="text-[11px] text-white/80 mt-0.5 truncate">
+                  {tr('Kirim & gabung Aplikasi → Cloud', 'Upsert App data & media → Cloud')}
+                </div>
+              </div>
+            </button>
+          )}
+
+          {isSuperAdmin && (
+            <button
+              type="button"
+              disabled={!isSupabaseConnected || dbAnyBusy}
+              onClick={() => setConfirmMirrorOpen((v) => !v)}
+              className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-amber-300/80 dark:border-amber-800/80 bg-amber-50/60 dark:bg-amber-950/20 hover:border-amber-500 text-amber-900 dark:text-amber-300 disabled:opacity-50 text-left transition cursor-pointer"
+            >
+              <div className="min-w-0">
+                <div className="font-bold flex items-center gap-1.5">
+                  <RefreshCw
+                    className={`w-4 h-4 text-amber-600 shrink-0 ${
+                      mirroringSupabase ? 'animate-spin' : ''
+                    }`}
+                  />
+                  {mirroringSupabase
+                    ? tr('Menyelaraskan...', 'Mirroring...')
+                    : tr('Mirror (Replace Cloud)', 'Mirror (Replace Cloud)')}
+                </div>
+                <div className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-0.5 truncate">
+                  {tr('Push + hapus baris yatim di Cloud', 'Push + purge orphan Cloud rows')}
+                </div>
+              </div>
+            </button>
+          )}
+        </div>
+
+        {/* Konfirmasi Inline untuk Mirror Replace Cloud */}
+        {confirmMirrorOpen && isSuperAdmin && (
+          <div className="p-4 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="space-y-0.5 text-amber-950 dark:text-amber-200">
+              <div className="font-bold">
                 {tr(
-                  'Struktur database mencakup keseluruhan data HR SupplyHub: 19 tabel relasional PostgreSQL (akun pengguna & re-organisasi, database karyawan HR, pengambilan & approval barang, master item, transaksi, stock opname, inventaris overhead & mutasi, rolling forecast GA FY2026, template & laporan bulanan A3, arsip dokumen, notifikasi, audit trail) serta 2 Storage Bucket (supplyhub-media & supplyhub-documents) untuk foto barang, tanda tangan, dan arsip dokumen PDF/Excel/Word.',
-                  'Database schema covers all HR SupplyHub data: 19 PostgreSQL relational tables (user accounts & reorganization, HR employee database, supply requests & approvals, master items, transactions, stock opname, overhead assets & mutations, FY2026 GA rolling forecast, A3 monthly templates & reports, document archive, notifications, audit trail) plus 2 Storage Buckets (supplyhub-media & supplyhub-documents) for item photos, signatures, and PDF/Excel/Word files.'
+                  'Konfirmasi Sinkron Cermin (Replace Database Cloud)',
+                  'Confirm Mirror Sync (Replace Cloud Database)'
+                )}
+              </div>
+              <p className="text-[11px] opacity-90">
+                {tr(
+                  'Tindakan ini akan mengunggah seluruh data aplikasi saat ini ke Supabase DAN menghapus baris di Supabase yang tidak ada pada aplikasi lokal.',
+                  'This will push all current app records to Supabase AND delete any rows in Supabase that do not exist locally.'
                 )}
               </p>
             </div>
-            {isSupabaseConnected && (
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  disabled={pullingSupabase}
-                  onClick={handlePullFromSupabase}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary disabled:opacity-60 text-xs font-semibold transition cursor-pointer"
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setConfirmMirrorOpen(false)}
+                className="px-3 py-1.5 rounded-lg border border-amber-400/70 font-semibold hover:bg-white/60 dark:hover:bg-black/20 cursor-pointer"
+              >
+                {tr('Batal', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleMirrorToSupabase}
+                className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold cursor-pointer"
+              >
+                {tr('Ya, Samakan Cloud', 'Yes, Mirror Cloud')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Banner Error Sinkronisasi */}
+        {isSupabaseConnected && syncStatus.lastError && (
+          <div className="p-3 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 text-xs text-red-700 dark:text-red-300 flex flex-wrap items-center justify-between gap-3">
+            <span className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>
+                {tr('Sinkronisasi terakhir mengalami kendala:', 'Last sync encountered an issue:')}{' '}
+                <strong className="font-mono-num">{syncStatus.lastError}</strong>
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={handlePushToSupabase}
+              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold shrink-0 cursor-pointer"
+            >
+              {tr('Coba Push Ulang', 'Retry Push')}
+            </button>
+          </div>
+        )}
+
+        {/* Hasil Diagnostik Uji Koneksi Live */}
+        {lastHealthReport && (
+          <div className="rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/60 dark:bg-[#0F1114] p-4 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-bold">
+                {lastHealthReport.connected &&
+                lastHealthReport.canWrite &&
+                lastHealthReport.summary.tablesOk === lastHealthReport.summary.tablesTotal ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                )}
+                <span>
+                  {tr('Hasil Uji Koneksi Langsung', 'Live Connection Diagnostics')} (
+                  {formatDateTimeIndo(lastHealthReport.checkedAt, language)})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTableMatrix((v) => !v)}
+                className="text-[11px] font-semibold text-theme-primary hover:underline cursor-pointer"
+              >
+                {showTableMatrix
+                  ? tr('Sembunyikan Detail 19 Tabel', 'Hide 19-Table Details')
+                  : tr('Tampilkan Detail 19 Tabel', 'Show 19-Table Details')}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+              <div className="p-3 rounded-xl bg-white dark:bg-[#171A1F] border border-neutral-200/80 dark:border-neutral-800">
+                <div className="text-[11px] text-neutral-500">{tr('Latensi API', 'API Latency')}</div>
+                <div className="font-mono-num font-extrabold text-sm mt-0.5">
+                  {lastHealthReport.latencyMs} ms
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-white dark:bg-[#171A1F] border border-neutral-200/80 dark:border-neutral-800">
+                <div className="text-[11px] text-neutral-500">{tr('Tabel PostgreSQL', 'PostgreSQL Tables')}</div>
+                <div className="font-mono-num font-extrabold text-sm mt-0.5 text-emerald-600 dark:text-emerald-400">
+                  {lastHealthReport.summary.tablesOk} / {lastHealthReport.summary.tablesTotal} OK
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-white dark:bg-[#171A1F] border border-neutral-200/80 dark:border-neutral-800">
+                <div className="text-[11px] text-neutral-500">{tr('Storage Bucket', 'Storage Buckets')}</div>
+                <div className="font-mono-num font-extrabold text-sm mt-0.5 text-emerald-600 dark:text-emerald-400">
+                  {lastHealthReport.summary.bucketsOk} / {lastHealthReport.summary.bucketsTotal} OK
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-white dark:bg-[#171A1F] border border-neutral-200/80 dark:border-neutral-800">
+                <div className="text-[11px] text-neutral-500">{tr('Uji Tulis & Hapus RLS', 'RLS Write/Delete Probe')}</div>
+                <div
+                  className={`font-extrabold text-sm mt-0.5 ${
+                    lastHealthReport.canWrite
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-red-600 dark:text-red-400'
+                  }`}
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${pullingSupabase ? 'animate-spin' : ''}`} />
-                  {pullingSupabase
-                    ? tr('Memuat...', 'Loading...')
-                    : tr('Muat Ulang dari Database', 'Reload from Database')}
-                </button>
-                <button
-                  type="button"
-                  disabled={syncingSupabase}
-                  onClick={handlePushToSupabase}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover disabled:opacity-60 text-white text-xs font-semibold transition cursor-pointer"
-                >
-                  <CloudUpload className="w-4 h-4" />
-                  {syncingSupabase
-                    ? tr('Menyinkronkan...', 'Syncing...')
-                    : tr('Sinkronkan Penuh ke Supabase', 'Full Sync to Supabase')}
-                </button>
+                  {lastHealthReport.canWrite ? tr('Berhasil (OK)', 'Passed (OK)') : tr('Gagal', 'Failed')}
+                </div>
+              </div>
+            </div>
+
+            {/* Status 2 Storage Bucket */}
+            {lastHealthReport.buckets.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                {lastHealthReport.buckets.map((b) => (
+                  <div
+                    key={b.bucket}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-mono-num ${
+                      b.ok
+                        ? 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400'
+                        : 'border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/20 text-red-700 dark:text-red-400'
+                    }`}
+                  >
+                    <HardDrive className="w-3 h-3" />
+                    <span>{b.bucket}</span>
+                    <span className="font-bold">{b.ok ? 'OK' : b.error || 'Error'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Tabel Perbandingan 19 Tabel Lokal vs Supabase */}
+            {showTableMatrix && lastHealthReport.tables.length > 0 && (
+              <div className="overflow-x-auto max-h-72 overflow-y-auto rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-neutral-50 dark:bg-[#12151B] border-b border-neutral-200 dark:border-neutral-800 text-neutral-500">
+                    <tr>
+                      <th className="py-2 px-3 text-left font-semibold">{tr('Tabel PostgreSQL', 'PostgreSQL Table')}</th>
+                      <th className="py-2 px-3 text-right font-semibold">{tr('Baris Lokal', 'Local Rows')}</th>
+                      <th className="py-2 px-3 text-right font-semibold">{tr('Baris Cloud', 'Cloud Rows')}</th>
+                      <th className="py-2 px-3 text-right font-semibold">{tr('Status', 'Status')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                    {lastHealthReport.tables.map((t) => {
+                      const synced = t.ok && t.localCount === t.remoteCount;
+                      return (
+                        <tr key={t.table} className="hover:bg-neutral-50/60 dark:hover:bg-neutral-800/30">
+                          <td className="py-2 px-3 font-mono-num font-medium">{t.table}</td>
+                          <td className="py-2 px-3 text-right font-mono-num">{t.localCount}</td>
+                          <td className="py-2 px-3 text-right font-mono-num">{t.ok ? t.remoteCount : '-'}</td>
+                          <td className="py-2 px-3 text-right">
+                            {!t.ok ? (
+                              <span className="text-red-600 font-semibold" title={t.error}>
+                                {tr('Error', 'Error')}
+                              </span>
+                            ) : synced ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                {tr('Sinkron', 'Synced')}
+                              </span>
+                            ) : (
+                              <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                                {tr('Beda Jumlah', 'Count Diff')}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
+        )}
 
-          {isSupabaseConnected && syncStatus.lastError && (
-            <div className="p-3 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 text-xs text-red-700 dark:text-red-300 flex items-center justify-between gap-3">
-              <span>
-                {tr('Sinkronisasi otomatis terakhir mengalami kendala:', 'Last automatic sync encountered an issue:')}{' '}
-                <strong className="font-mono-num">{syncStatus.lastError}</strong>
-              </span>
-              <button
-                type="button"
-                onClick={handlePushToSupabase}
-                className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-semibold shrink-0 cursor-pointer"
-              >
-                {tr('Coba Lagi', 'Retry')}
-              </button>
+        {/* Ringkasan Struktur & Unduh Script SQL (Super Admin) */}
+        <div className="grid sm:grid-cols-3 gap-3 text-xs">
+          <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
+            <div className="text-[11px] font-semibold text-neutral-500">
+              {tr('Cakupan Tabel Inti', 'Core Table Coverage')}
             </div>
-          )}
-
-          <div className="grid sm:grid-cols-3 gap-3 text-xs">
-            <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
-              <div className="text-[11px] font-semibold text-neutral-500">
-                {tr('Cakupan Tabel Inti', 'Core Table Coverage')}
-              </div>
-              <div className="font-bold text-sm font-mono-num">
-                {tr('19 Tabel Relasional', '19 Relational Tables')}
-              </div>
-              <p className="text-[11px] text-neutral-500">
-                {tr('Akun', 'Users')} ({store.users.length}), {tr('Karyawan HR', 'HR Employees')} (
-                {(store.employees || []).length}), {tr('Item', 'Items')} ({store.items.length}), RF GA (
-                {store.rollingForecast.rows.length}), {tr('Dokumen', 'Docs')} ({(store.documents || []).length}).
-              </p>
+            <div className="font-bold text-sm font-mono-num">
+              {tr('19 Tabel Relasional', '19 Relational Tables')}
             </div>
-            <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
-              <div className="text-[11px] font-semibold text-neutral-500">
-                {tr('Storage Media & Dokumen', 'Media & Document Storage')}
-              </div>
-              <div className="font-bold text-sm font-mono-num">
-                {tr('2 Bucket Storage', '2 Storage Buckets')}
-              </div>
-              <p className="text-[11px] text-neutral-500">
-                {totalPhotosCount} {tr('foto item/aset', 'item/asset photos')} (
-                <code className="font-mono-num">supplyhub-media</code>) &amp; {(store.documents || []).length}{' '}
-                {tr('arsip PDF/Excel/Word', 'PDF/Excel/Word archives')} (
-                <code className="font-mono-num">supplyhub-documents</code>).
-              </p>
-            </div>
-            <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
-              <div className="text-[11px] font-semibold text-neutral-500">
-                {tr('Variabel Koneksi (.env)', 'Connection Variables (.env)')}
-              </div>
-              <div className="font-bold text-sm font-mono-num">VITE_SUPABASE_URL</div>
-              <p className="text-[11px] text-neutral-500">
-                {tr(
-                  'Isi VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY lalu jalankan SQL di bawah di SQL Editor Supabase.',
-                  'Set VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY, then run the SQL scripts below in Supabase SQL Editor.'
-                )}
-              </p>
-            </div>
+            <p className="text-[11px] text-neutral-500">
+              {tr('Akun', 'Users')} ({store.users.length}), {tr('Karyawan HR', 'HR Employees')} (
+              {(store.employees || []).length}), {tr('Item', 'Items')} ({store.items.length}), RF GA (
+              {store.rollingForecast.rows.length}), {tr('Dokumen', 'Docs')} ({(store.documents || []).length}).
+            </p>
           </div>
+          <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
+            <div className="text-[11px] font-semibold text-neutral-500">
+              {tr('Storage Media & Dokumen', 'Media & Document Storage')}
+            </div>
+            <div className="font-bold text-sm font-mono-num">
+              {tr('2 Bucket Storage', '2 Storage Buckets')}
+            </div>
+            <p className="text-[11px] text-neutral-500">
+              {totalPhotosCount} {tr('foto item/aset', 'item/asset photos')} (
+              <code className="font-mono-num">supplyhub-media</code>) &amp; {(store.documents || []).length}{' '}
+              {tr('arsip PDF/Excel/Word', 'PDF/Excel/Word archives')} (
+              <code className="font-mono-num">supplyhub-documents</code>).
+            </p>
+          </div>
+          <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
+            <div className="text-[11px] font-semibold text-neutral-500">
+              {tr('Mode Sinkronisasi', 'Sync Mode')}
+            </div>
+            <div className="font-bold text-sm font-mono-num">
+              {isSupabaseConnected
+                ? tr('Auto-Sync + Realtime', 'Auto-Sync + Realtime')
+                : 'VITE_SUPABASE_URL'}
+            </div>
+            <p className="text-[11px] text-neutral-500">
+              {isSupabaseConnected
+                ? tr(
+                    'Perubahan tersimpan otomatis berurutan dengan retry otomatis dan sinkron live antar tab.',
+                    'Changes auto-save sequentially with automatic retry and live cross-tab sync.'
+                  )
+                : tr(
+                    'Isi VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY lalu jalankan SQL di bawah di SQL Editor Supabase.',
+                    'Set VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY, then run the SQL scripts below in Supabase SQL Editor.'
+                  )}
+            </p>
+          </div>
+        </div>
 
+        {isSuperAdmin && (
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <button
               type="button"
@@ -1114,8 +1514,8 @@ export const SettingsPage: React.FC = () => {
               {tr('Unduh Seed Data Terkini (.sql)', 'Download Current Seed SQL (.sql)')}
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Modal Tambah / Edit Akun Pengguna (Mendukung Re-organisasi) */}
       {userForm && (

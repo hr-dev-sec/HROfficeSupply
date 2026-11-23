@@ -1,17 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
+  Activity,
+  AlertCircle,
   ArrowLeftRight,
   Bell,
   Bot,
   Box,
   CalendarRange,
   CheckCheck,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
   Clock,
+  CloudDownload,
+  CloudUpload,
+  Database,
   FileSpreadsheet,
   FolderUp,
   History,
@@ -129,13 +135,27 @@ const NAV_ITEMS: NavEntry[] = [
 export const AppShell: React.FC = () => {
   const {
     user,
+    isSuperAdmin,
+    canEditOperational,
     logout,
     isTimeoutWarningOpen,
     remainingTimeoutSeconds,
     sessionTimeoutMinutes,
     extendSession,
   } = useAuth();
-  const { store, markNotificationRead, markAllNotificationsRead, resetDemoData } = useSupplyHub();
+  const {
+    store,
+    isSupabaseConnected,
+    supabaseHost,
+    syncStatus,
+    lastHealthReport,
+    testSupabaseConnection,
+    syncAllToSupabase,
+    refreshFromSupabase,
+    markNotificationRead,
+    markAllNotificationsRead,
+    resetDemoData,
+  } = useSupplyHub();
   const { activePreset } = useTheme();
   const { tr, language } = useLanguage();
   const { toast } = useToast();
@@ -146,6 +166,8 @@ export const AppShell: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dbMenuOpen, setDbMenuOpen] = useState(false);
+  const [dbBusy, setDbBusy] = useState<'test' | 'pull' | 'push' | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -165,6 +187,7 @@ export const AppShell: React.FC = () => {
       }
       if (e.key === 'Escape') {
         setSearchOpen(false);
+        setDbMenuOpen(false);
         setNotifOpen(false);
         setProfileOpen(false);
       }
@@ -244,6 +267,81 @@ export const AppShell: React.FC = () => {
       )
     );
   };
+
+  const handleQuickDbTest = async () => {
+    setDbBusy('test');
+    const report = await testSupabaseConnection();
+    setDbBusy(null);
+    if (report.connected && report.canWrite && report.summary.tablesOk === report.summary.tablesTotal) {
+      toast(
+        tr('Koneksi Supabase aktif & normal', 'Supabase connection healthy'),
+        'success',
+        tr(
+          `${report.summary.tablesOk}/${report.summary.tablesTotal} tabel · ${report.summary.bucketsOk}/${report.summary.bucketsTotal} bucket · Write OK (${report.latencyMs} ms)`,
+          `${report.summary.tablesOk}/${report.summary.tablesTotal} tables · ${report.summary.bucketsOk}/${report.summary.bucketsTotal} buckets · Write OK (${report.latencyMs} ms)`
+        )
+      );
+    } else {
+      toast(
+        tr('Koneksi Supabase bermasalah', 'Supabase connection issue'),
+        'error',
+        report.writeError ||
+          tr(
+            `${report.summary.tablesOk}/${report.summary.tablesTotal} tabel terbaca.`,
+            `${report.summary.tablesOk}/${report.summary.tablesTotal} tables reachable.`
+          )
+      );
+    }
+  };
+
+  const handleQuickDbPull = async () => {
+    setDbBusy('pull');
+    const ok = await refreshFromSupabase();
+    setDbBusy(null);
+    if (ok) {
+      toast(
+        tr('Pull database berhasil', 'Database pull succeeded'),
+        'success',
+        tr('Data terbaru dari Supabase telah dimuat.', 'Latest records from Supabase loaded.')
+      );
+    } else {
+      toast(tr('Gagal menarik data dari Supabase', 'Failed to pull data from Supabase'), 'error');
+    }
+  };
+
+  const handleQuickDbPush = async () => {
+    setDbBusy('push');
+    const res = await syncAllToSupabase();
+    setDbBusy(null);
+    if (res.ok) {
+      toast(
+        tr('Push ke database berhasil', 'Database push succeeded'),
+        'success',
+        tr(
+          'Seluruh data, foto & dokumen telah tersimpan ke Supabase.',
+          'All records, photos & documents have been pushed to Supabase.'
+        )
+      );
+    } else {
+      toast(tr('Gagal mengirim data ke Supabase', 'Failed to push data to Supabase'), 'error', res.error);
+    }
+  };
+
+  const dbDotClass = !isSupabaseConnected
+    ? 'bg-amber-500'
+    : syncStatus.state === 'error'
+    ? 'bg-red-500'
+    : syncStatus.state === 'syncing' || dbBusy !== null
+    ? 'bg-sky-500 animate-pulse'
+    : 'bg-emerald-500';
+
+  const dbLabelShort = !isSupabaseConnected
+    ? tr('Lokal', 'Local')
+    : syncStatus.state === 'error'
+    ? tr('DB Error', 'DB Error')
+    : syncStatus.state === 'syncing' || dbBusy !== null
+    ? tr('Sync...', 'Syncing...')
+    : tr('DB Aktif', 'DB Live');
 
   return (
     <div className="min-h-screen flex bg-theme-canvas text-[#1F2328] dark:text-[#F1F3F5] transition-colors duration-300">
@@ -392,6 +490,175 @@ export const AppShell: React.FC = () => {
             {/* Theme Palette, Language & Dark Mode Controls */}
             <AppearanceControls compact />
 
+            {/* Database Connection Icon & Quick Control Popover */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setDbMenuOpen((v) => !v);
+                  setNotifOpen(false);
+                  setProfileOpen(false);
+                }}
+                aria-label={tr('Kontrol Koneksi Database Supabase', 'Supabase Database Connection Control')}
+                title={
+                  isSupabaseConnected
+                    ? tr(
+                        `Terhubung ke Supabase (${supabaseHost}) — klik untuk kontrol database`,
+                        `Connected to Supabase (${supabaseHost}) — click for database controls`
+                      )
+                    : tr('Mode Penyimpanan Lokal — klik untuk detail', 'Local Storage Mode — click for details')
+                }
+                className="relative flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
+              >
+                <span className="relative inline-flex">
+                  <Database
+                    className={`w-4 h-4 ${
+                      !isSupabaseConnected
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : syncStatus.state === 'error'
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-emerald-600 dark:text-emerald-400'
+                    }`}
+                  />
+                  <span
+                    className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-[#171A1F] ${dbDotClass}`}
+                  />
+                </span>
+                <span className="hidden md:inline text-[11px] font-semibold whitespace-nowrap">
+                  {dbLabelShort}
+                </span>
+              </button>
+
+              {dbMenuOpen && (
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] shadow-xl overflow-hidden z-50">
+                  <div className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-xs font-bold">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${dbDotClass}`} />
+                        <span className="truncate">
+                          {isSupabaseConnected
+                            ? syncStatus.state === 'error'
+                              ? tr('Koneksi Supabase Bermasalah', 'Supabase Sync Error')
+                              : tr('Terhubung ke Supabase', 'Connected to Supabase')
+                            : tr('Mode Lokal (Offline)', 'Local Mode (Offline)')}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono-num truncate mt-0.5">
+                        {isSupabaseConnected
+                          ? supabaseHost
+                          : tr('Env Supabase belum dikonfigurasi', 'Supabase env not configured')}
+                      </div>
+                    </div>
+                    {lastHealthReport && (
+                      <span className="text-[10px] font-mono-num font-semibold text-neutral-500 shrink-0">
+                        {lastHealthReport.latencyMs} ms
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="p-3 space-y-2.5 text-xs">
+                    {lastHealthReport && (
+                      <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900/70 border border-neutral-200/80 dark:border-neutral-800 flex items-center justify-between gap-2 text-[11px]">
+                        <span className="inline-flex items-center gap-1.5 font-semibold">
+                          {lastHealthReport.connected && lastHealthReport.canWrite ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          ) : (
+                            <AlertCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                          )}
+                          {lastHealthReport.summary.tablesOk}/{lastHealthReport.summary.tablesTotal}{' '}
+                          {tr('tabel', 'tables')} · {lastHealthReport.summary.bucketsOk}/
+                          {lastHealthReport.summary.bucketsTotal} bucket
+                        </span>
+                        <span
+                          className={`font-semibold ${
+                            lastHealthReport.canWrite ? 'text-emerald-600' : 'text-red-600'
+                          }`}
+                        >
+                          {lastHealthReport.canWrite ? 'Write OK' : 'Read-Only'}
+                        </span>
+                      </div>
+                    )}
+
+                    {syncStatus.lastSyncedAt && (
+                      <div className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center justify-between px-1">
+                        <span>{tr('Sinkron terakhir', 'Last synced')}</span>
+                        <span className="font-mono-num">
+                          {formatDateTimeIndo(syncStatus.lastSyncedAt, language)}
+                        </span>
+                      </div>
+                    )}
+
+                    {syncStatus.lastError && (
+                      <div className="p-2 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 text-[11px] text-red-700 dark:text-red-300">
+                        {syncStatus.lastError}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        disabled={!isSupabaseConnected || dbBusy !== null}
+                        onClick={handleQuickDbTest}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 hover:border-theme-primary disabled:opacity-50 font-semibold transition cursor-pointer"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Activity
+                            className={`w-3.5 h-3.5 text-theme-primary ${
+                              dbBusy === 'test' ? 'animate-pulse' : ''
+                            }`}
+                          />
+                          {dbBusy === 'test'
+                            ? tr('Menguji koneksi...', 'Testing connection...')
+                            : tr('Uji Koneksi Database', 'Test Database Connection')}
+                        </span>
+                        <span className="text-[10px] text-neutral-400 font-mono-num">19 tbl</span>
+                      </button>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          disabled={!isSupabaseConnected || dbBusy !== null}
+                          onClick={handleQuickDbPull}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 hover:border-theme-primary disabled:opacity-50 font-semibold transition cursor-pointer"
+                        >
+                          <CloudDownload
+                            className={`w-3.5 h-3.5 text-sky-600 ${
+                              dbBusy === 'pull' ? 'animate-bounce' : ''
+                            }`}
+                          />
+                          {dbBusy === 'pull' ? tr('Pull...', 'Pulling...') : tr('Pull DB', 'Pull DB')}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            !isSupabaseConnected || dbBusy !== null || (!isSuperAdmin && !canEditOperational)
+                          }
+                          onClick={handleQuickDbPush}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-theme-primary text-white disabled:opacity-50 font-semibold transition cursor-pointer"
+                        >
+                          <CloudUpload
+                            className={`w-3.5 h-3.5 ${dbBusy === 'push' ? 'animate-bounce' : ''}`}
+                          />
+                          {dbBusy === 'push' ? tr('Push...', 'Pushing...') : tr('Push DB', 'Push DB')}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDbMenuOpen(false);
+                        navigate('/app/settings#supabase-control');
+                      }}
+                      className="w-full pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[11px] font-semibold text-theme-primary hover:underline text-center cursor-pointer"
+                    >
+                      {tr('Buka Pusat Kontrol Database Lengkap →', 'Open Full Database Control Center →')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Notifications */}
             <div className="relative">
               <button
@@ -399,6 +666,7 @@ export const AppShell: React.FC = () => {
                 onClick={() => {
                   setNotifOpen((v) => !v);
                   setProfileOpen(false);
+                  setDbMenuOpen(false);
                 }}
                 aria-label={tr('Notifikasi', 'Notifications')}
                 className="relative p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
@@ -477,6 +745,7 @@ export const AppShell: React.FC = () => {
                 onClick={() => {
                   setProfileOpen((v) => !v);
                   setNotifOpen(false);
+                  setDbMenuOpen(false);
                 }}
                 className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >

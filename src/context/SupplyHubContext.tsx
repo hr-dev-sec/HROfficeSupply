@@ -28,8 +28,9 @@ import type {
   User,
   WorkflowStage,
 } from '../types';
+import { SUPABASE_PROJECT_HOST } from '../lib/supabaseClient';
 import { supplyHubRepository } from '../repositories';
-import type { SyncResult } from '../repositories/types';
+import type { DatabaseHealthReport, SyncResult } from '../repositories/types';
 import { deleteDocumentFromStorage, uploadDataUrlToStorage } from '../services/mediaStorageService';
 import { computeDocHash, formatPeriodLong, formatPeriodShort, getNextPeriod, getPrevPeriod } from '../utils/format';
 import { useLanguage } from './LanguageContext';
@@ -45,8 +46,12 @@ export interface SupabaseSyncStatus {
 interface SupplyHubContextValue {
   store: SupplyHubStore;
   isSupabaseConnected: boolean;
+  supabaseHost: string;
   syncStatus: SupabaseSyncStatus;
+  lastHealthReport: DatabaseHealthReport | null;
+  testSupabaseConnection: () => Promise<DatabaseHealthReport>;
   syncAllToSupabase: () => Promise<SyncResult>;
+  replaceSupabaseFromLocal: () => Promise<SyncResult>;
   refreshFromSupabase: () => Promise<boolean>;
   // Reset & Backup
   resetDemoData: (actor?: User) => void;
@@ -229,6 +234,7 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   storeRef.current = store;
 
   const isSupabaseConnected = Boolean(supplyHubRepository.isRemoteEnabled?.());
+  const supabaseHost = SUPABASE_PROJECT_HOST;
 
   const [syncStatus, setSyncStatus] = useState<SupabaseSyncStatus>({
     state: isSupabaseConnected ? 'synced' : 'idle',
@@ -236,6 +242,7 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     lastSyncedAt: null,
     lastError: null,
   });
+  const [lastHealthReport, setLastHealthReport] = useState<DatabaseHealthReport | null>(null);
 
   const syncChainRef = useRef<Promise<void>>(Promise.resolve());
   const pendingSyncCountRef = useRef(0);
@@ -426,6 +433,72 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     return result;
   }, [isSupabaseConnected]);
+
+  const replaceSupabaseFromLocal = useCallback(async (): Promise<SyncResult> => {
+    const fn = supplyHubRepository.replaceFullStoreOnRemote || supplyHubRepository.pushFullStoreToRemote;
+    if (!fn || !isSupabaseConnected) {
+      return {
+        ok: false,
+        error: 'Koneksi Supabase belum aktif. Isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY pada environment.',
+      };
+    }
+    await syncChainRef.current;
+    const result = await fn.call(supplyHubRepository, storeRef.current);
+    if (result.ok) {
+      lastLocalWriteAtRef.current = Date.now();
+      const refreshed = supplyHubRepository.loadStore();
+      storeRef.current = refreshed;
+      setStore(refreshed);
+      setSyncStatus({
+        state: 'synced',
+        pendingCount: pendingSyncCountRef.current,
+        lastSyncedAt: new Date().toISOString(),
+        lastError: null,
+      });
+    } else {
+      setSyncStatus((prev) => ({
+        ...prev,
+        state: 'error',
+        lastError: result.error || 'Mirror sync failed',
+      }));
+    }
+    return result;
+  }, [isSupabaseConnected]);
+
+  const testSupabaseConnection = useCallback(async (): Promise<DatabaseHealthReport> => {
+    if (!supplyHubRepository.testConnection) {
+      const offlineReport: DatabaseHealthReport = {
+        checkedAt: new Date().toISOString(),
+        connected: false,
+        projectHost: '',
+        latencyMs: 0,
+        canWrite: false,
+        writeError: 'VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY belum dikonfigurasi.',
+        tables: [],
+        buckets: [],
+        summary: { tablesOk: 0, tablesTotal: 19, bucketsOk: 0, bucketsTotal: 2 },
+      };
+      setLastHealthReport(offlineReport);
+      return offlineReport;
+    }
+    const report = await supplyHubRepository.testConnection(storeRef.current);
+    setLastHealthReport(report);
+    if (report.connected && report.canWrite && report.summary.tablesOk === report.summary.tablesTotal) {
+      setSyncStatus((prev) => ({
+        ...prev,
+        state: pendingSyncCountRef.current > 0 ? 'syncing' : 'synced',
+        lastSyncedAt: report.checkedAt,
+        lastError: null,
+      }));
+    } else if (!report.connected || !report.canWrite) {
+      setSyncStatus((prev) => ({
+        ...prev,
+        state: 'error',
+        lastError: report.writeError || 'Database health check failed',
+      }));
+    }
+    return report;
+  }, []);
 
   const makeAudit = (entry: Omit<AuditLogEntry, 'id' | 'timestamp'>): AuditLogEntry => ({
     ...entry,
@@ -2708,8 +2781,12 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       value={{
         store,
         isSupabaseConnected,
+        supabaseHost,
         syncStatus,
+        lastHealthReport,
+        testSupabaseConnection,
         syncAllToSupabase,
+        replaceSupabaseFromLocal,
         refreshFromSupabase,
         resetDemoData,
         exportBackupJson,

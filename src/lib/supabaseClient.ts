@@ -16,6 +16,15 @@ export const isSupabaseConfigured = Boolean(
     !supabaseUrl.includes('YOUR_')
 );
 
+export const SUPABASE_PROJECT_HOST: string = (() => {
+  if (!isSupabaseConfigured) return '';
+  try {
+    return new URL(supabaseUrl).host;
+  } catch {
+    return supabaseUrl.replace(/^https?:\/\//, '').split('/')[0] || '';
+  }
+})();
+
 export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {

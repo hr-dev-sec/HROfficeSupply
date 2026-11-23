@@ -1,6 +1,12 @@
 import { buildSeedStore } from '../data/seedData';
 import { buildRollingForecastSeed } from '../data/forecastSeed';
-import { isSupabaseConfigured, supabase } from '../lib/supabaseClient';
+import {
+  isSupabaseConfigured,
+  supabase,
+  SUPABASE_DOCUMENTS_BUCKET,
+  SUPABASE_PROJECT_HOST,
+  SUPABASE_STORAGE_BUCKET,
+} from '../lib/supabaseClient';
 import {
   uploadDataUrlToStorage,
   uploadDocumentDataUrlToStorage,
@@ -29,7 +35,13 @@ import type {
   User,
 } from '../types';
 import { LocalStorageSupplyHubRepository } from './localStorageRepository';
-import type { ISupplyHubRepository, SyncResult } from './types';
+import type {
+  BucketCheckResult,
+  DatabaseHealthReport,
+  ISupplyHubRepository,
+  SyncResult,
+  TableCheckResult,
+} from './types';
 
 function chunkArray<T>(arr: T[], size = 200): T[][] {
   const out: T[][] = [];
@@ -1245,6 +1257,170 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
       console.error('Gagal sinkronisasi delta ke Supabase:', err);
       return { ok: false, error: msg };
     }
+  }
+
+  async testConnection(localStore: SupplyHubStore): Promise<DatabaseHealthReport> {
+    const checkedAt = new Date().toISOString();
+    const tableLocalCounts: Array<{ table: string; localCount: number }> = [
+      { table: 'app_users', localCount: localStore.users.length },
+      { table: 'hr_employees', localCount: (localStore.employees || []).length },
+      { table: 'company_settings', localCount: 1 },
+      { table: 'master_data_config', localCount: 1 },
+      { table: 'supply_items', localCount: localStore.items.length },
+      { table: 'stock_transactions', localCount: localStore.transactions.length },
+      { table: 'opname_sessions', localCount: localStore.opnames.length },
+      {
+        table: 'opname_lines',
+        localCount: localStore.opnames.reduce((s, o) => s + o.lines.length, 0),
+      },
+      { table: 'signature_templates', localCount: localStore.templates.length },
+      { table: 'monthly_reports', localCount: localStore.reports.length },
+      { table: 'overhead_inventories', localCount: localStore.inventories.length },
+      {
+        table: 'overhead_inventory_mutations',
+        localCount: localStore.inventories.reduce((s, i) => s + i.mutations.length, 0),
+      },
+      { table: 'item_requests', localCount: localStore.itemRequests.length },
+      { table: 'rolling_forecast_meta', localCount: 1 },
+      { table: 'rolling_forecast_rows', localCount: localStore.rollingForecast.rows.length },
+      {
+        table: 'rolling_forecast_submissions',
+        localCount: localStore.rollingForecast.submissions.length,
+      },
+      { table: 'system_documents', localCount: (localStore.documents || []).length },
+      { table: 'app_notifications', localCount: localStore.notifications.length },
+      { table: 'audit_logs', localCount: localStore.auditLogs.length },
+    ];
+
+    const bucketNames = [SUPABASE_STORAGE_BUCKET, SUPABASE_DOCUMENTS_BUCKET];
+
+    if (!supabase || !isSupabaseConfigured) {
+      return {
+        checkedAt,
+        connected: false,
+        projectHost: '',
+        latencyMs: 0,
+        canWrite: false,
+        writeError: 'VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY belum dikonfigurasi.',
+        tables: tableLocalCounts.map((t) => ({
+          table: t.table,
+          ok: false,
+          remoteCount: 0,
+          localCount: t.localCount,
+          error: 'Belum terhubung',
+        })),
+        buckets: bucketNames.map((b) => ({ bucket: b, ok: false, error: 'Belum terhubung' })),
+        summary: {
+          tablesOk: 0,
+          tablesTotal: tableLocalCounts.length,
+          bucketsOk: 0,
+          bucketsTotal: bucketNames.length,
+        },
+      };
+    }
+
+    const client = supabase;
+    const t0 = performance.now();
+
+    const [tables, buckets] = await Promise.all([
+      Promise.all(
+        tableLocalCounts.map(async ({ table, localCount }): Promise<TableCheckResult> => {
+          try {
+            const { count, error } = await client
+              .from(table)
+              .select('id', { count: 'exact', head: true });
+            if (error) {
+              return {
+                table,
+                ok: false,
+                remoteCount: 0,
+                localCount,
+                error: error.message,
+              };
+            }
+            return {
+              table,
+              ok: true,
+              remoteCount: count ?? 0,
+              localCount,
+            };
+          } catch (err) {
+            return {
+              table,
+              ok: false,
+              remoteCount: 0,
+              localCount,
+              error: err instanceof Error ? err.message : 'Query error',
+            };
+          }
+        })
+      ),
+      Promise.all(
+        bucketNames.map(async (bucket): Promise<BucketCheckResult> => {
+          try {
+            const { error } = await client.storage.from(bucket).list('', { limit: 1 });
+            if (error) {
+              return { bucket, ok: false, error: error.message };
+            }
+            return { bucket, ok: true };
+          } catch (err) {
+            return {
+              bucket,
+              ok: false,
+              error: err instanceof Error ? err.message : 'Storage error',
+            };
+          }
+        })
+      ),
+    ]);
+
+    const latencyMs = Math.max(1, Math.round(performance.now() - t0));
+
+    // Uji izin tulis & hapus RLS langsung pada audit_logs (langsung dibersihkan)
+    let canWrite = false;
+    let writeError: string | undefined;
+    const probeId = `aud-probe-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    try {
+      const { error: insErr } = await client.from('audit_logs').insert({
+        id: probeId,
+        timestamp: checkedAt,
+        user_id: null,
+        user_name: 'Connection Test',
+        user_role: 'SUPER_ADMIN',
+        action: 'UPDATE',
+        object_type: 'Database Probe',
+        object_label: 'Live write verification',
+      });
+      if (insErr) {
+        writeError = insErr.message;
+      } else {
+        canWrite = true;
+        await client.from('audit_logs').delete().eq('id', probeId);
+      }
+    } catch (err) {
+      writeError = err instanceof Error ? err.message : 'Write test failed';
+    }
+
+    const tablesOk = tables.filter((t) => t.ok).length;
+    const bucketsOk = buckets.filter((b) => b.ok).length;
+    const connected = tablesOk > 0;
+
+    return {
+      checkedAt,
+      connected,
+      projectHost: SUPABASE_PROJECT_HOST,
+      latencyMs,
+      canWrite,
+      writeError,
+      tables,
+      buckets,
+      summary: {
+        tablesOk,
+        tablesTotal: tables.length,
+        bucketsOk,
+        bucketsTotal: buckets.length,
+      },
+    };
   }
 
   subscribeToRemoteChanges(onChange: (table: string) => void): () => void {
