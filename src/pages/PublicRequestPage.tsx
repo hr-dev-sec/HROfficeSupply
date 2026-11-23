@@ -38,7 +38,7 @@ export const PublicRequestPage: React.FC = () => {
   const { user } = useAuth();
   const { store, createItemRequest } = useSupplyHub();
   const { activePreset } = useTheme();
-  const { tr } = useLanguage();
+  const { tr, language } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -203,7 +203,12 @@ export const PublicRequestPage: React.FC = () => {
         uom: c.uom,
         qty: c.qty,
       })),
-      note: note.trim() || `Pengambilan kebutuhan ${selectedEmployee.section}`,
+      note:
+        note.trim() ||
+        tr(
+          `Pengambilan kebutuhan ${selectedEmployee.section}`,
+          `Supply request for ${selectedEmployee.section}`
+        ),
     });
 
     setSubmittedRequest(created);
@@ -921,7 +926,7 @@ export const PublicRequestPage: React.FC = () => {
                   recentRequests.map((req) => (
                     <tr key={req.id} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/30">
                       <td className="py-3 pr-3 whitespace-nowrap font-mono-num text-neutral-600 dark:text-neutral-400">
-                        {formatDateIndo(req.requestDate)}
+                        {formatDateIndo(req.requestDate, language)}
                       </td>
                       <td className="py-3 px-3">
                         <div className="font-semibold text-neutral-900 dark:text-white">

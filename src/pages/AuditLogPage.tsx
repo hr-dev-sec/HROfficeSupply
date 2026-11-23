@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Download, Search } from 'lucide-react';
 import { EmptyState } from '../components/common/EmptyState';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
 import { useToast } from '../context/ToastContext';
 import { exportRowsToExcel } from '../utils/exportUtils';
@@ -9,6 +10,7 @@ import { formatDateTimeIndo, getRoleLabel } from '../utils/format';
 export const AuditLogPage: React.FC = () => {
   const { store } = useSupplyHub();
   const { toast } = useToast();
+  const { language, tr } = useLanguage();
 
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('ALL');
@@ -33,37 +35,42 @@ export const AuditLogPage: React.FC = () => {
   const handleExport = () => {
     exportRowsToExcel(
       filtered.map((l) => ({
-        Waktu: formatDateTimeIndo(l.timestamp),
-        Pengguna: l.userName,
-        Peran: getRoleLabel(l.userRole),
-        Aksi: l.action,
-        Objek: l.objectType,
+        [tr('Waktu', 'Timestamp')]: formatDateTimeIndo(l.timestamp, language),
+        [tr('Pengguna', 'User')]: l.userName,
+        [tr('Peran', 'Role')]: getRoleLabel(l.userRole),
+        [tr('Aksi', 'Action')]: l.action,
+        [tr('Objek', 'Object')]: l.objectType,
         Detail: l.objectLabel,
-        'Nilai Lama': l.oldValue || '-',
-        'Nilai Baru': l.newValue || '-',
+        [tr('Nilai Lama', 'Old Value')]: l.oldValue || '-',
+        [tr('Nilai Baru', 'New Value')]: l.newValue || '-',
       })),
       'Audit Log',
       'Audit_Log_HR_SupplyHub.xlsx'
     );
-    toast('Audit log diekspor ke Excel', 'success');
+    toast(tr('Audit log diekspor ke Excel', 'Audit log exported to Excel'), 'success');
   };
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold font-display">Audit Log Sistem</h2>
+          <h2 className="text-xl font-extrabold font-display">
+            {tr('Audit Log Sistem', 'System Audit Log')}
+          </h2>
           <p className="text-xs text-neutral-500">
-            Catatan kronologis setiap perubahan data, persetujuan, tanda tangan, dan ekspor laporan.
+            {tr(
+              'Catatan kronologis setiap perubahan data, persetujuan, tanda tangan, dan ekspor laporan.',
+              'Chronological record of every data change, approval, signature, and report export.'
+            )}
           </p>
         </div>
         <button
           type="button"
           onClick={handleExport}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold cursor-pointer"
         >
           <Download className="w-4 h-4" />
-          Ekspor Audit Excel
+          {tr('Ekspor Audit Excel', 'Export Audit Excel')}
         </button>
       </div>
 
@@ -74,7 +81,7 @@ export const AuditLogPage: React.FC = () => {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari pengguna, objek, atau detail..."
+            placeholder={tr('Cari pengguna, objek, atau detail...', 'Search user, object, or details...')}
             className="w-full pl-9 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114] text-xs"
           />
         </div>
@@ -83,7 +90,7 @@ export const AuditLogPage: React.FC = () => {
           onChange={(e) => setActionFilter(e.target.value)}
           className="w-full sm:w-auto px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
         >
-          <option value="ALL">Semua Aksi</option>
+          <option value="ALL">{tr('Semua Aksi', 'All Actions')}</option>
           {['LOGIN', 'CREATE', 'UPDATE', 'SIGN', 'REJECT', 'APPROVE', 'EXPORT', 'IMPORT', 'RESET'].map(
             (a) => (
               <option key={a} value={a}>
@@ -97,7 +104,7 @@ export const AuditLogPage: React.FC = () => {
           onChange={(e) => setUserFilter(e.target.value)}
           className="w-full sm:w-auto px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
         >
-          <option value="ALL">Semua Pengguna</option>
+          <option value="ALL">{tr('Semua Pengguna', 'All Users')}</option>
           {store.users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name}
@@ -107,31 +114,34 @@ export const AuditLogPage: React.FC = () => {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState title="Tidak ada entri audit" description="Ubah filter untuk melihat catatan aktivitas." />
+        <EmptyState
+          title={tr('Tidak ada entri audit', 'No audit entries')}
+          description={tr('Ubah filter untuk melihat catatan aktivitas.', 'Adjust filters to view activity logs.')}
+        />
       ) : (
         <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 text-left text-neutral-500">
-                  <th className="p-3 font-semibold">Waktu</th>
-                  <th className="p-3 font-semibold">Pengguna</th>
-                  <th className="p-3 font-semibold">Aksi</th>
-                  <th className="p-3 font-semibold">Objek</th>
-                  <th className="p-3 font-semibold">Nilai Lama → Baru</th>
+                  <th className="p-3 font-semibold">{tr('Waktu', 'Timestamp')}</th>
+                  <th className="p-3 font-semibold">{tr('Pengguna', 'User')}</th>
+                  <th className="p-3 font-semibold">{tr('Aksi', 'Action')}</th>
+                  <th className="p-3 font-semibold">{tr('Objek', 'Object')}</th>
+                  <th className="p-3 font-semibold">{tr('Nilai Lama → Baru', 'Old → New Value')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {filtered.map((log) => (
                   <tr key={log.id} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/30">
                     <td className="p-3 font-mono-num whitespace-nowrap">
-                      {formatDateTimeIndo(log.timestamp)}
+                      {formatDateTimeIndo(log.timestamp, language)}
                     </td>
                     <td className="p-3">
                       <div className="font-semibold">{log.userName}</div>
                       <div className="text-[11px] text-neutral-500">{getRoleLabel(log.userRole)}</div>
                     </td>
-                    <td className="p-3 font-mono-num font-bold text-[#E60012]">{log.action}</td>
+                    <td className="p-3 font-mono-num font-bold text-theme-primary">{log.action}</td>
                     <td className="p-3">
                       <div className="font-semibold">{log.objectType}</div>
                       <div className="text-neutral-500">{log.objectLabel}</div>

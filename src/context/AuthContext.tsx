@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { User, UserRole } from '../types';
+import { useLanguage } from './LanguageContext';
 import { useSupplyHub } from './SupplyHubContext';
 
 export const SESSION_TIMEOUT_OPTIONS = [5, 10, 15, 30, 60] as const;
@@ -89,6 +90,7 @@ function readInitialSessionUserId(timeoutMinutes: SessionTimeoutMinutes): {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { store, logAction } = useSupplyHub();
+  const { tr } = useLanguage();
 
   const [sessionTimeoutMinutes, setSessionTimeoutMinutesState] = useState<SessionTimeoutMinutes>(
     () => readValidatedTimeoutMinutes()
@@ -294,7 +296,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const mins = Math.ceil((lockout.lockedUntil - curr) / 60000);
         return {
           ok: false,
-          error: `Akun terkunci sementara karena 5 kali percobaan gagal. Coba lagi dalam ${mins} menit.`,
+          error: tr(
+            `Akun terkunci sementara karena 5 kali percobaan gagal. Coba lagi dalam ${mins} menit.`,
+            `Account temporarily locked after 5 failed attempts. Try again in ${mins} minute(s).`
+          ),
         };
       }
 
@@ -319,12 +324,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (nextAttempts >= 5) {
           return {
             ok: false,
-            error: 'Terlalu banyak percobaan gagal (5x). Login dikunci selama 5 menit.',
+            error: tr(
+              'Terlalu banyak percobaan gagal (5x). Login dikunci selama 5 menit.',
+              'Too many failed attempts (5x). Sign-in is locked for 5 minutes.'
+            ),
           };
         }
         return {
           ok: false,
-          error: `Username/email atau kata sandi salah. Sisa percobaan: ${5 - nextAttempts}x.`,
+          error: tr(
+            `Username/email atau kata sandi salah. Sisa percobaan: ${5 - nextAttempts}x.`,
+            `Invalid username/email or password. Remaining attempts: ${5 - nextAttempts}.`
+          ),
         };
       }
 
@@ -355,7 +366,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { ok: true };
     },
-    [lockout, logAction, sessionTimeoutMinutes, store.users]
+    [lockout, logAction, sessionTimeoutMinutes, store.users, tr]
   );
 
   const loginAsDemo = useCallback(

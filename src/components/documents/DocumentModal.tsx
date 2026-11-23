@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { useSupplyHub } from '../../context/SupplyHubContext';
 import { useToast } from '../../context/ToastContext';
 import {
@@ -26,47 +27,57 @@ import { formatDateTimeIndo, formatPeriodLong } from '../../utils/format';
 export const DOCUMENT_CATEGORY_OPTIONS: Array<{
   value: DocumentCategory;
   label: string;
+  labelEn: string;
   defaultModule: DocumentLinkedModule;
 }> = [
   {
     value: 'LAPORAN_OFFICE_SUPPLIES',
     label: 'Laporan Bulanan — Office Supplies',
+    labelEn: 'Monthly Report — Office Supplies',
     defaultModule: 'REPORTS',
   },
   {
     value: 'LAPORAN_OVERHEAD_GOODS',
     label: 'Laporan Bulanan — Overhead Goods',
+    labelEn: 'Monthly Report — Overhead Goods',
     defaultModule: 'REPORTS',
   },
   {
     value: 'LAPORAN_INVENTARIS',
     label: 'Laporan Bulanan — Inventaris Overhead',
+    labelEn: 'Monthly Report — Overhead Inventory',
     defaultModule: 'REPORTS',
   },
   {
     value: 'ROLLING_FORECAST_GA',
     label: 'Rolling Forecast GA Dept.',
+    labelEn: 'GA Dept. Rolling Forecast',
     defaultModule: 'FORECAST',
   },
   {
     value: 'STOCK_OPNAME',
     label: 'Berita Acara / Lampiran Stock Opname',
+    labelEn: 'Stock Opname Minutes / Attachment',
     defaultModule: 'OPNAME',
   },
   {
     value: 'BUKTI_SERAH_TERIMA',
     label: 'Bukti Serah Terima / Surat Jalan GA',
+    labelEn: 'Handover Receipt / GA Delivery Note',
     defaultModule: 'TRANSACTIONS',
   },
   {
     value: 'SOP_MEMO',
     label: 'SOP Internal HR / Memo Re-organisasi',
+    labelEn: 'Internal HR SOP / Reorganization Memo',
     defaultModule: 'GENERAL',
   },
 ];
 
-export function getDocumentCategoryLabel(cat: DocumentCategory): string {
-  return DOCUMENT_CATEGORY_OPTIONS.find((o) => o.value === cat)?.label || cat;
+export function getDocumentCategoryLabel(cat: DocumentCategory, lang: 'id' | 'en' = 'id'): string {
+  const found = DOCUMENT_CATEGORY_OPTIONS.find((o) => o.value === cat);
+  if (!found) return cat;
+  return lang === 'en' ? found.labelEn : found.label;
 }
 
 export function formatFileSize(bytes: number): string {
@@ -136,6 +147,7 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
 }) => {
   const { user } = useAuth();
   const { store, isSupabaseConnected, addDocument, updateDocument } = useSupplyHub();
+  const { tr } = useLanguage();
   const { toast } = useToast();
 
   const [title, setTitle] = useState('');
@@ -180,7 +192,7 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      toast('Judul dokumen wajib diisi', 'error');
+      toast(tr('Judul dokumen wajib diisi', 'Document title is required'), 'error');
       return;
     }
 
@@ -202,13 +214,13 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
         },
         user
       );
-      toast('Metadata dokumen diperbarui', 'success');
+      toast(tr('Metadata dokumen diperbarui', 'Document metadata updated'), 'success');
       onClose();
       return;
     }
 
     if (!selectedFile) {
-      toast('Pilih berkas dokumen terlebih dahulu', 'error');
+      toast(tr('Pilih berkas dokumen terlebih dahulu', 'Please select a file first'), 'error');
       return;
     }
 
@@ -235,8 +247,8 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
       );
       toast(
         uploaded.uploadedToCloud
-          ? 'Dokumen diunggah ke Supabase Storage & Database'
-          : 'Dokumen berhasil diunggah & disimpan',
+          ? tr('Dokumen diunggah ke Supabase Storage & Database', 'Document uploaded to Supabase Storage & Database')
+          : tr('Dokumen berhasil diunggah & disimpan', 'Document uploaded & saved'),
         'success',
         `${saved.title} (${formatFileSize(saved.fileSize)})`
       );
@@ -244,7 +256,7 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
       onClose();
     } catch (err) {
       toast(
-        'Gagal mengunggah dokumen',
+        tr('Gagal mengunggah dokumen', 'Failed to upload document'),
         'error',
         err instanceof Error ? err.message : undefined
       );
@@ -262,19 +274,27 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold flex items-center gap-2">
-              <Paperclip className="w-4 h-4 text-[#E60012]" />
-              {editingDoc ? 'Edit Metadata Dokumen' : 'Unggah Dokumen ke Database'}
+              <Paperclip className="w-4 h-4 text-theme-primary" />
+              {editingDoc
+                ? tr('Edit Metadata Dokumen', 'Edit Document Metadata')
+                : tr('Unggah Dokumen ke Database', 'Upload Document to Database')}
             </h3>
             <p className="text-[11px] text-neutral-500 mt-0.5">
               {isSupabaseConnected
-                ? 'Berkas otomatis tersimpan ke Supabase Storage (supplyhub-documents) & tabel system_documents (maks. 15 MB).'
-                : 'Mendukung PDF, Excel (.xlsx/.xls/.csv), Word (.docx), dan Scan Gambar — otomatis tersinkron ke Supabase saat terhubung.'}
+                ? tr(
+                    'Berkas otomatis tersimpan ke Supabase Storage (supplyhub-documents) & tabel system_documents (maks. 15 MB).',
+                    'Files are automatically stored in Supabase Storage (supplyhub-documents) & system_documents table (max 15 MB).'
+                  )
+                : tr(
+                    'Mendukung PDF, Excel (.xlsx/.xls/.csv), Word (.docx), dan Scan Gambar — otomatis tersinkron ke Supabase saat terhubung.',
+                    'Supports PDF, Excel (.xlsx/.xls/.csv), Word (.docx), and Scanned Images — synced automatically when connected.'
+                  )}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -283,25 +303,31 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
         {/* File Picker (Only on Upload New) */}
         {!editingDoc && (
           <div>
-            <label className="block font-semibold mb-1.5">Pilih Berkas Dokumen *</label>
-            <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-[#E60012] bg-neutral-50/70 dark:bg-[#0F1114] cursor-pointer transition text-center">
-              <Upload className="w-6 h-6 text-[#E60012]" />
+            <label className="block font-semibold mb-1.5">
+              {tr('Pilih Berkas Dokumen *', 'Select Document File *')}
+            </label>
+            <label className="flex flex-col items-center justify-center gap-2 p-5 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-theme-primary bg-neutral-50/70 dark:bg-[#0F1114] cursor-pointer transition text-center">
+              <Upload className="w-6 h-6 text-theme-primary" />
               {selectedFile ? (
                 <div className="space-y-0.5">
                   <div className="font-bold text-neutral-900 dark:text-white break-all">
                     {selectedFile.name}
                   </div>
                   <div className="text-[11px] text-emerald-600 font-semibold">
-                    Siap diunggah · {formatFileSize(selectedFile.size)} (Klik untuk mengganti file)
+                    {tr('Siap diunggah', 'Ready to upload')} · {formatFileSize(selectedFile.size)}{' '}
+                    ({tr('Klik untuk mengganti file', 'Click to replace file')})
                   </div>
                 </div>
               ) : (
                 <div className="space-y-0.5">
                   <div className="font-semibold text-neutral-700 dark:text-neutral-200">
-                    Klik untuk memilih file PDF, Excel, Word, atau Scan Gambar
+                    {tr(
+                      'Klik untuk memilih file PDF, Excel, Word, atau Scan Gambar',
+                      'Click to choose a PDF, Excel, Word, or Scanned Image file'
+                    )}
                   </div>
                   <div className="text-[11px] text-neutral-400">
-                    Format: .pdf, .xlsx, .xls, .csv, .docx, .doc, .jpg, .png, .webp
+                    {tr('Format:', 'Formats:')} .pdf, .xlsx, .xls, .csv, .docx, .doc, .jpg, .png, .webp
                   </div>
                 </div>
               )}
@@ -317,19 +343,26 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
 
         <div className="grid sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2">
-            <label className="block font-semibold mb-1">Judul Dokumen *</label>
+            <label className="block font-semibold mb-1">
+              {tr('Judul Dokumen *', 'Document Title *')}
+            </label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Contoh: Scan Laporan Office Supplies Sep-26 Bertanda Tangan"
+              placeholder={tr(
+                'Contoh: Scan Laporan Office Supplies Sep-26 Bertanda Tangan',
+                'e.g., Signed Sep-26 Office Supplies Monthly Report Scan'
+              )}
               className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
             />
           </div>
 
           <div>
-            <label className="block font-semibold mb-1">Kategori Dokumen *</label>
+            <label className="block font-semibold mb-1">
+              {tr('Kategori Dokumen *', 'Document Category *')}
+            </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as DocumentCategory)}
@@ -337,14 +370,16 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
             >
               {DOCUMENT_CATEGORY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                  {tr(opt.label, opt.labelEn)}
                 </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label className="block font-semibold mb-1">Periode Bulan *</label>
+            <label className="block font-semibold mb-1">
+              {tr('Periode Bulan *', 'Monthly Period *')}
+            </label>
             <input
               type="month"
               required
@@ -356,14 +391,16 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
 
           <div className="sm:col-span-2">
             <label className="block font-semibold mb-1">
-              Tautkan ke Laporan Bulanan (Opsional)
+              {tr('Tautkan ke Laporan Bulanan (Opsional)', 'Link to Monthly Report (Optional)')}
             </label>
             <select
               value={linkedReportId}
               onChange={(e) => setLinkedReportId(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
             >
-              <option value="">-- Tidak ditautkan ke laporan tertentu --</option>
+              <option value="">
+                {tr('-- Tidak ditautkan ke laporan tertentu --', '-- Not linked to a specific report --')}
+              </option>
               {store.reports.map((rep) => (
                 <option key={rep.id} value={rep.id}>
                   {rep.documentId} · {rep.periodLabel} · {rep.title} ({rep.status})
@@ -373,12 +410,17 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
           </div>
 
           <div className="sm:col-span-2">
-            <label className="block font-semibold mb-1">Keterangan / Nomor Referensi</label>
+            <label className="block font-semibold mb-1">
+              {tr('Keterangan / Nomor Referensi', 'Notes / Reference Number')}
+            </label>
             <textarea
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Contoh: Scan basah ttd SM & DM HR, atau balasan konfirmasi RF dari GA Dept."
+              placeholder={tr(
+                'Contoh: Scan basah ttd SM & DM HR, atau balasan konfirmasi RF dari GA Dept.',
+                'e.g., Wet-signed scan by SM & DM HR, or GA Dept. RF confirmation reply.'
+              )}
               className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
             />
           </div>
@@ -388,21 +430,21 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold"
+            className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold cursor-pointer"
           >
-            Batal
+            {tr('Batal', 'Cancel')}
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] disabled:opacity-60 text-white font-semibold"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary disabled:opacity-60 text-white font-semibold cursor-pointer"
           >
             <Upload className="w-3.5 h-3.5" />
             {submitting
-              ? 'Mengunggah...'
+              ? tr('Mengunggah...', 'Uploading...')
               : editingDoc
-              ? 'Simpan Perubahan'
-              : 'Unggah & Simpan'}
+              ? tr('Simpan Perubahan', 'Save Changes')
+              : tr('Unggah & Simpan', 'Upload & Save')}
           </button>
         </div>
       </form>
@@ -417,6 +459,7 @@ interface DocumentPreviewModalProps {
 
 export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ doc, onClose }) => {
   const { store } = useSupplyHub();
+  const { language, tr } = useLanguage();
   if (!doc) return null;
 
   const kind = getDocumentKind(doc);
@@ -439,8 +482,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ doc,
             <div className="min-w-0">
               <h3 className="text-sm font-bold truncate">{doc.title}</h3>
               <div className="text-[11px] text-neutral-500 truncate">
-                {doc.fileName} · {formatFileSize(doc.fileSize)} · Periode{' '}
-                {formatPeriodLong(doc.period)}
+                {doc.fileName} · {formatFileSize(doc.fileSize)} · {tr('Periode', 'Period')}{' '}
+                {formatPeriodLong(doc.period, language)}
               </div>
             </div>
           </div>
@@ -448,15 +491,15 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ doc,
             <button
               type="button"
               onClick={() => downloadSystemDocument(doc)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-theme-primary text-white text-xs font-semibold cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
-              Unduh
+              {tr('Unduh', 'Download')}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -483,15 +526,18 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ doc,
               </div>
               <div className="font-bold text-sm break-all">{doc.fileName}</div>
               <p className="text-xs text-neutral-500">
-                Pratinjau langsung tidak tersedia di browser untuk format {kind}. Klik tombol <strong>Unduh</strong> di atas untuk membuka file dengan aplikasi Excel / Word.
+                {tr(
+                  `Pratinjau langsung tidak tersedia di browser untuk format ${kind}. Klik tombol Unduh di atas untuk membuka file dengan aplikasi Excel / Word.`,
+                  `In-browser preview is not available for ${kind} files. Click Download above to open it with Excel / Word.`
+                )}
               </p>
               <button
                 type="button"
                 onClick={() => downloadSystemDocument(doc)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#E60012] text-white text-xs font-semibold"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary text-white text-xs font-semibold cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
-                Unduh Berkas ({formatFileSize(doc.fileSize)})
+                {tr('Unduh Berkas', 'Download File')} ({formatFileSize(doc.fileSize)})
               </button>
             </div>
           )}
@@ -500,16 +546,21 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({ doc,
         <div className="px-5 py-3 border-t border-neutral-200 dark:border-neutral-800 text-xs flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-[#171A1F]">
           <div className="text-neutral-500 space-x-2">
             <span>
-              Kategori: <strong className="text-neutral-800 dark:text-neutral-200">{getDocumentCategoryLabel(doc.category)}</strong>
+              {tr('Kategori:', 'Category:')}{' '}
+              <strong className="text-neutral-800 dark:text-neutral-200">
+                {getDocumentCategoryLabel(doc.category, language)}
+              </strong>
             </span>
             {linkedReport && (
               <span>
-                · Laporan: <strong className="text-[#E60012] font-mono-num">{linkedReport.documentId}</strong>
+                · {tr('Laporan:', 'Report:')}{' '}
+                <strong className="text-theme-primary font-mono-num">{linkedReport.documentId}</strong>
               </span>
             )}
           </div>
           <div className="text-[11px] text-neutral-400">
-            Diunggah oleh {doc.uploadedByName} · {formatDateTimeIndo(doc.uploadedAt)}
+            {tr('Diunggah oleh', 'Uploaded by')} {doc.uploadedByName} ·{' '}
+            {formatDateTimeIndo(doc.uploadedAt, language)}
           </div>
         </div>
       </div>

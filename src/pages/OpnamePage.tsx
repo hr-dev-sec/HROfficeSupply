@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardCheck, Send, XCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
 import { useToast } from '../context/ToastContext';
 import type { OpnameLine, SupplyType } from '../types';
@@ -8,6 +9,7 @@ import { formatDateTimeIndo, formatPeriodLong, getPrevPeriod } from '../utils/fo
 
 export const OpnamePage: React.FC = () => {
   const { user, canEditOperational, canApproveSM } = useAuth();
+  const { language, tr } = useLanguage();
   const { store, createOpnameSession, reviewOpnameSession } = useSupplyHub();
   const { toast } = useToast();
 
@@ -71,15 +73,20 @@ export const OpnamePage: React.FC = () => {
     const missingReason = liveLines.find((l) => l.diff !== 0 && !l.reason.trim());
     if (missingReason) {
       toast(
-        'Alasan selisih wajib diisi',
+        tr('Alasan selisih wajib diisi', 'Discrepancy reason is required'),
         'error',
-        `Isi alasan selisih untuk item "${missingReason.itemName}".`
+        tr(
+          `Isi alasan selisih untuk item "${missingReason.itemName}".`,
+          `Enter a discrepancy reason for "${missingReason.itemName}".`
+        )
       );
       return;
     }
     createOpnameSession(period, jenis, liveLines, submitToSM, user);
     toast(
-      submitToSM ? 'Opname diajukan ke Section Manager' : 'Draft opname disimpan',
+      submitToSM
+        ? tr('Opname diajukan ke Section Manager', 'Stock opname submitted to Section Manager')
+        : tr('Draft opname disimpan', 'Opname draft saved'),
       'success'
     );
   };
@@ -88,9 +95,14 @@ export const OpnamePage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold font-display">Stock Opname Akhir Bulan</h2>
+          <h2 className="text-xl font-extrabold font-display">
+            {tr('Stock Opname Akhir Bulan', 'Month-End Stock Opname')}
+          </h2>
           <p className="text-xs text-neutral-500">
-            Verifikasi fisik terhadap saldo sistem (Stok Awal + Terima - Pakai = Stock Akhir) sebelum laporan bulanan diterbitkan.
+            {tr(
+              'Verifikasi fisik terhadap saldo sistem (Stok Awal + Terima - Pakai = Stock Akhir) sebelum laporan bulanan diterbitkan.',
+              'Verify physical stock against system balance (Opening + Received - Used = Closing Stock) before publishing monthly reports.'
+            )}
           </p>
         </div>
 
@@ -137,11 +149,15 @@ export const OpnamePage: React.FC = () => {
           <div>
             <div className="text-sm font-bold">
               {unbalancedCount === 0
-                ? 'Status: Balance (Seluruh item sesuai)'
-                : `Terdapat ${unbalancedCount} item dengan selisih fisik`}
+                ? tr('Status: Balance (Seluruh item sesuai)', 'Status: Balanced (All items match)')
+                : tr(
+                    `Terdapat ${unbalancedCount} item dengan selisih fisik`,
+                    `${unbalancedCount} item(s) have physical discrepancies`
+                  )}
             </div>
             <div className="text-xs text-neutral-500">
-              Periode {formatPeriodLong(period)} · {liveLines.length} item diperiksa
+              {tr('Periode', 'Period')} {formatPeriodLong(period, language)} · {liveLines.length}{' '}
+              {tr('item diperiksa', 'items checked')}
             </div>
           </div>
         </div>
@@ -153,15 +169,15 @@ export const OpnamePage: React.FC = () => {
               onClick={() => handleSubmitOpname(false)}
               className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800"
             >
-              Simpan Draft
+              {tr('Simpan Draft', 'Save Draft')}
             </button>
             <button
               type="button"
               onClick={() => handleSubmitOpname(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
             >
               <Send className="w-3.5 h-3.5" />
-              Ajukan ke Section Manager
+              {tr('Ajukan ke Section Manager', 'Submit to Section Manager')}
             </button>
           </div>
         )}
@@ -173,15 +189,15 @@ export const OpnamePage: React.FC = () => {
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 text-left text-neutral-500">
               <tr>
-                <th className="p-3 font-semibold">Item</th>
-                <th className="p-3 font-semibold text-right">Awal</th>
-                <th className="p-3 font-semibold text-right">Terima</th>
-                <th className="p-3 font-semibold text-right">Pakai</th>
-                <th className="p-3 font-semibold text-right">Sistem</th>
-                <th className="p-3 font-semibold text-center">Hitung Fisik</th>
-                <th className="p-3 font-semibold text-right">Selisih</th>
-                <th className="p-3 font-semibold">Status</th>
-                <th className="p-3 font-semibold">Alasan (Wajib bila selisih)</th>
+                <th className="p-3 font-semibold">{tr('Item', 'Item')}</th>
+                <th className="p-3 font-semibold text-right">{tr('Awal', 'Opening')}</th>
+                <th className="p-3 font-semibold text-right">{tr('Terima', 'Received')}</th>
+                <th className="p-3 font-semibold text-right">{tr('Pakai', 'Used')}</th>
+                <th className="p-3 font-semibold text-right">{tr('Sistem', 'System')}</th>
+                <th className="p-3 font-semibold text-center">{tr('Hitung Fisik', 'Physical Count')}</th>
+                <th className="p-3 font-semibold text-right">{tr('Selisih', 'Diff')}</th>
+                <th className="p-3 font-semibold">{tr('Status', 'Status')}</th>
+                <th className="p-3 font-semibold">{tr('Alasan (Wajib bila selisih)', 'Reason (Required if diff)')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -195,7 +211,7 @@ export const OpnamePage: React.FC = () => {
                   </td>
                   <td className="p-3 text-right font-mono-num">{line.stokAwal}</td>
                   <td className="p-3 text-right font-mono-num text-emerald-600">{line.terima}</td>
-                  <td className="p-3 text-right font-mono-num text-[#E60012]">{line.pakai}</td>
+                  <td className="p-3 text-right font-mono-num text-theme-primary">{line.pakai}</td>
                   <td className="p-3 text-right font-mono-num font-bold">{line.systemStock}</td>
                   <td className="p-3 text-center">
                     <input
@@ -218,7 +234,7 @@ export const OpnamePage: React.FC = () => {
                   </td>
                   <td
                     className={`p-3 text-right font-mono-num font-bold ${
-                      line.diff === 0 ? 'text-neutral-500' : 'text-[#E60012]'
+                      line.diff === 0 ? 'text-neutral-500' : 'text-theme-primary'
                     }`}
                   >
                     {line.diff > 0 ? `+${line.diff}` : line.diff}
@@ -227,12 +243,12 @@ export const OpnamePage: React.FC = () => {
                     {line.balanced ? (
                       <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Balance
+                        {tr('Balance', 'Balanced')}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-amber-600 font-semibold">
                         <AlertTriangle className="w-3.5 h-3.5" />
-                        Selisih
+                        {tr('Selisih', 'Discrepancy')}
                       </span>
                     )}
                   </td>
@@ -250,7 +266,7 @@ export const OpnamePage: React.FC = () => {
                           },
                         }))
                       }
-                      placeholder={line.diff !== 0 ? 'Wajib diisi...' : 'Opsional'}
+                      placeholder={line.diff !== 0 ? tr('Wajib diisi...', 'Required...') : tr('Opsional', 'Optional')}
                       className={`w-full px-2.5 py-1 rounded-lg border text-xs ${
                         line.diff !== 0 && !line.reason.trim()
                           ? 'border-red-400 bg-red-50/40 dark:bg-red-950/20'
@@ -268,8 +284,8 @@ export const OpnamePage: React.FC = () => {
       {/* Riwayat & Persetujuan Opname */}
       <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
         <h3 className="text-sm font-bold flex items-center gap-2">
-          <ClipboardCheck className="w-4 h-4 text-[#E60012]" />
-          Riwayat &amp; Persetujuan Stock Opname
+          <ClipboardCheck className="w-4 h-4 text-theme-primary" />
+          {tr('Riwayat & Persetujuan Stock Opname', 'Stock Opname History & Approvals')}
         </h3>
         <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
           {store.opnames.map((op) => {
@@ -282,11 +298,13 @@ export const OpnamePage: React.FC = () => {
                 <div>
                   <div className="font-bold">
                     {op.jenis === 'OFFICE_SUPPLIES' ? 'Office Supplies' : 'Overhead Goods'} ·{' '}
-                    {formatPeriodLong(op.period)}
+                    {formatPeriodLong(op.period, language)}
                   </div>
                   <div className="text-neutral-500 mt-0.5">
-                    Dibuat oleh {op.createdByName} · {formatDateTimeIndo(op.createdAt)} ·{' '}
-                    {diffCount === 0 ? 'Semua balance' : `${diffCount} item selisih`}
+                    {tr('Dibuat oleh', 'Created by')} {op.createdByName} · {formatDateTimeIndo(op.createdAt, language)} ·{' '}
+                    {diffCount === 0
+                      ? tr('Semua balance', 'All balanced')
+                      : tr(`${diffCount} item selisih`, `${diffCount} item(s) with discrepancy`)}
                   </div>
                 </div>
 
@@ -301,12 +319,12 @@ export const OpnamePage: React.FC = () => {
                     }`}
                   >
                     {op.status === 'MENUNGGU_SM'
-                      ? 'Menunggu Section Manager'
+                      ? tr('Menunggu Section Manager', 'Awaiting Section Manager')
                       : op.status === 'DISETUJUI'
-                      ? `Disetujui (${op.approvedByName})`
+                      ? tr(`Disetujui (${op.approvedByName})`, `Approved (${op.approvedByName})`)
                       : op.status === 'DITOLAK'
-                      ? 'Ditolak'
-                      : 'Draft'}
+                      ? tr('Ditolak', 'Rejected')
+                      : tr('Draft', 'Draft')}
                   </span>
 
                   {op.status === 'MENUNGGU_SM' && canApproveSM && user && (
@@ -315,23 +333,31 @@ export const OpnamePage: React.FC = () => {
                         type="button"
                         onClick={() => {
                           reviewOpnameSession(op.id, true, user);
-                          toast('Stock Opname disetujui & saldo disesuaikan', 'success');
+                          toast(
+                            tr('Stock Opname disetujui & saldo disesuaikan', 'Stock Opname approved & stock adjusted'),
+                            'success'
+                          );
                         }}
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Setujui
+                        {tr('Setujui', 'Approve')}
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          reviewOpnameSession(op.id, false, user, 'Mohon verifikasi ulang hitungan');
-                          toast('Stock Opname dikembalikan', 'warning');
+                          reviewOpnameSession(
+                            op.id,
+                            false,
+                            user,
+                            tr('Mohon verifikasi ulang hitungan', 'Please re-verify physical count')
+                          );
+                          toast(tr('Stock Opname dikembalikan', 'Stock Opname returned'), 'warning');
                         }}
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-300 text-red-600 font-semibold"
                       >
                         <XCircle className="w-3.5 h-3.5" />
-                        Tolak
+                        {tr('Tolak', 'Reject')}
                       </button>
                     </>
                   )}

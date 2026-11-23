@@ -1,5 +1,6 @@
 import React from 'react';
 import { Check, Clock } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 import type { MonthlyReport, WorkflowStage } from '../../types';
 import { formatDateTimeIndo } from '../../utils/format';
 
@@ -7,15 +8,17 @@ interface ReportStepperProps {
   report: MonthlyReport;
 }
 
-const STAGES: Array<{ key: WorkflowStage; label: string }> = [
-  { key: 'DRAFT', label: 'Draft' },
-  { key: 'DILAPORKAN', label: 'Dilaporkan' },
-  { key: 'DICHECK', label: 'Dicheck' },
-  { key: 'MENGETAHUI', label: 'Mengetahui' },
-  { key: 'FINAL', label: 'Final' },
+const STAGES: Array<{ key: WorkflowStage; labelId: string; labelEn: string }> = [
+  { key: 'DRAFT', labelId: 'Draft', labelEn: 'Draft' },
+  { key: 'DILAPORKAN', labelId: 'Dilaporkan', labelEn: 'Reported' },
+  { key: 'DICHECK', labelId: 'Dicheck', labelEn: 'Checked' },
+  { key: 'MENGETAHUI', labelId: 'Mengetahui', labelEn: 'Acknowledged' },
+  { key: 'FINAL', labelId: 'Final', labelEn: 'Final' },
 ];
 
 export const ReportStepper: React.FC<ReportStepperProps> = ({ report }) => {
+  const { language, tr } = useLanguage();
+
   const dilGroup = report.signatureGroups.find((g) => g.stage === 'DILAPORKAN');
   const dicGroup = report.signatureGroups.find((g) => g.stage === 'DICHECK');
   const menGroup = report.signatureGroups.find((g) => g.stage === 'MENGETAHUI');
@@ -31,7 +34,7 @@ export const ReportStepper: React.FC<ReportStepperProps> = ({ report }) => {
         done: true,
         active: report.status === 'DRAFT',
         names: report.versions[0]?.savedBy || 'Staff HR',
-        sub: formatDateTimeIndo(report.createdAt),
+        sub: formatDateTimeIndo(report.createdAt, language),
       };
     }
     if (key === 'DILAPORKAN') {
@@ -41,7 +44,10 @@ export const ReportStepper: React.FC<ReportStepperProps> = ({ report }) => {
         done: dilDone,
         active: report.status === 'DRAFT' || report.status === 'DILAPORKAN',
         names,
-        sub: dilDone && signedAt ? formatDateTimeIndo(signedAt) : 'Menunggu PIC',
+        sub:
+          dilDone && signedAt
+            ? formatDateTimeIndo(signedAt, language)
+            : tr('Menunggu PIC', 'Awaiting PIC'),
       };
     }
     if (key === 'DICHECK') {
@@ -52,7 +58,9 @@ export const ReportStepper: React.FC<ReportStepperProps> = ({ report }) => {
         done: dicDone,
         active: report.status === 'DICHECK',
         names,
-        sub: dicDone ? 'Lengkap disetujui' : `${signedCount}/${totalCount} tanda tangan`,
+        sub: dicDone
+          ? tr('Lengkap disetujui', 'Fully approved')
+          : `${signedCount}/${totalCount} ${tr('tanda tangan', 'signatures')}`,
       };
     }
     if (key === 'MENGETAHUI') {
@@ -62,14 +70,17 @@ export const ReportStepper: React.FC<ReportStepperProps> = ({ report }) => {
         done: menDone,
         active: report.status === 'MENGETAHUI',
         names,
-        sub: menDone && signedAt ? formatDateTimeIndo(signedAt) : 'Menunggu DM HR',
+        sub:
+          menDone && signedAt
+            ? formatDateTimeIndo(signedAt, language)
+            : tr('Menunggu DM HR', 'Awaiting HR DM'),
       };
     }
     return {
       done: isFinal,
       active: isFinal,
-      names: 'Arsip HR Dept',
-      sub: isFinal ? 'Terkunci & Terverifikasi' : 'Belum Final',
+      names: tr('Arsip HR Dept', 'HR Dept Archive'),
+      sub: isFinal ? tr('Terkunci & Terverifikasi', 'Locked & Verified') : tr('Belum Final', 'Not Final'),
     };
   };
 
@@ -95,9 +106,14 @@ export const ReportStepper: React.FC<ReportStepperProps> = ({ report }) => {
                     meta.done
                       ? 'bg-emerald-600 border-emerald-600 text-white'
                       : meta.active
-                      ? 'bg-[#E60012]/10 border-[#E60012] text-[#E60012]'
+                      ? 'border-theme-primary text-theme-primary'
                       : 'bg-neutral-100 dark:bg-neutral-800 border-neutral-300 dark:border-neutral-700 text-neutral-500'
                   }`}
+                  style={
+                    !meta.done && meta.active
+                      ? { backgroundColor: 'rgba(var(--brand-primary-rgb), 0.1)' }
+                      : undefined
+                  }
                 >
                   {meta.done ? <Check className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
                 </div>
@@ -106,11 +122,11 @@ export const ReportStepper: React.FC<ReportStepperProps> = ({ report }) => {
                     meta.done
                       ? 'text-emerald-700 dark:text-emerald-400'
                       : meta.active
-                      ? 'text-[#E60012]'
+                      ? 'text-theme-primary'
                       : 'text-neutral-500 dark:text-neutral-400'
                   }`}
                 >
-                  {stage.label}
+                  {tr(stage.labelId, stage.labelEn)}
                 </span>
               </div>
               <div className="mt-2 pl-1">

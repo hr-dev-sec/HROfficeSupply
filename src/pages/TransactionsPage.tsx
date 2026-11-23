@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { EmptyState } from '../components/common/EmptyState';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
 import { useToast } from '../context/ToastContext';
 import { exportRowsToExcel } from '../utils/exportUtils';
@@ -27,6 +28,7 @@ interface DraftTxLine {
 
 export const TransactionsPage: React.FC = () => {
   const { user, canEditOperational } = useAuth();
+  const { language, tr } = useLanguage();
   const { store, recordTransactions } = useSupplyHub();
   const { toast } = useToast();
 
@@ -101,10 +103,20 @@ export const TransactionsPage: React.FC = () => {
           videoRef.current.srcObject = stream;
         }
       } else {
-        setCameraError('Browser tidak mendukung akses kamera langsung. Gunakan input kode QR manual di bawah.');
+        setCameraError(
+          tr(
+            'Browser tidak mendukung akses kamera langsung. Gunakan input kode QR manual di bawah.',
+            'Browser does not support direct camera access. Use the manual QR code input below.'
+          )
+        );
       }
     } catch {
-      setCameraError('Izin kamera belum tersedia di pratinjau ini. Gunakan pemindai kode manual di bawah.');
+      setCameraError(
+        tr(
+          'Izin kamera belum tersedia di pratinjau ini. Gunakan pemindai kode manual di bawah.',
+          'Camera permission is unavailable in this preview. Use the manual code scanner below.'
+        )
+      );
     }
   };
 
@@ -118,7 +130,7 @@ export const TransactionsPage: React.FC = () => {
         i.itemName.toLowerCase().includes(q)
     );
     if (!found) {
-      toast('Kode QR / item tidak ditemukan', 'error');
+      toast(tr('Kode QR / item tidak ditemukan', 'QR code / item not found'), 'error');
       return;
     }
     setLines((prev) => [
@@ -128,13 +140,13 @@ export const TransactionsPage: React.FC = () => {
         itemId: found.id,
         type: globalType,
         qty: 1,
-        note: 'Dipindai via QR/Barcode',
+        note: tr('Dipindai via QR/Barcode', 'Scanned via QR/Barcode'),
       },
     ]);
     setScanCodeInput('');
     stopCamera();
     setScannerOpen(false);
-    toast(`Item ditambahkan: ${found.itemName}`, 'success');
+    toast(tr(`Item ditambahkan: ${found.itemName}`, `Item added: ${found.itemName}`), 'success');
   };
 
   const handleSubmitTransactions = (e: React.FormEvent) => {
@@ -151,10 +163,16 @@ export const TransactionsPage: React.FC = () => {
       user
     );
     if (!res.ok) {
-      toast('Validasi transaksi gagal', 'error', res.error);
+      toast(tr('Validasi transaksi gagal', 'Transaction validation failed'), 'error', res.error);
       return;
     }
-    toast(`${lines.length} transaksi berhasil dicatat ke buku log`, 'success');
+    toast(
+      tr(
+        `${lines.length} transaksi berhasil dicatat ke buku log`,
+        `${lines.length} transaction(s) recorded to logbook`
+      ),
+      'success'
+    );
     setLines([
       {
         key: `line-${Date.now()}`,
@@ -169,8 +187,8 @@ export const TransactionsPage: React.FC = () => {
   const handleExportLog = () => {
     exportRowsToExcel(
       filteredTxs.map((t) => ({
-        Tanggal: formatDateIndo(t.date),
-        Periode: formatPeriodShort(t.period),
+        Tanggal: formatDateIndo(t.date, language),
+        Periode: formatPeriodShort(t.period, language),
         Tipe: t.type,
         Kode: t.codeItem || '-',
         Item: t.itemName,
@@ -179,18 +197,23 @@ export const TransactionsPage: React.FC = () => {
         Pencatat: t.recordedByName,
         Catatan: t.note,
       })),
-      'Buku Log Transaksi',
+      tr('Buku Log Transaksi', 'Transaction Logbook'),
       'Buku_Log_Transaksi_HR_SupplyHub.xlsx'
     );
-    toast('Buku log berhasil diekspor ke Excel', 'success');
+    toast(tr('Buku log berhasil diekspor ke Excel', 'Logbook exported to Excel'), 'success');
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-extrabold font-display">Transaksi Terima &amp; Pakai</h2>
+        <h2 className="text-xl font-extrabold font-display">
+          {tr('Transaksi Terima & Pakai', 'Receive & Issue Transactions')}
+        </h2>
         <p className="text-xs text-neutral-500">
-          Catat kedatangan dan pengambilan barang sekaligus dalam satu formulir; pemakaian otomatis divalidasi terhadap stok tersedia.
+          {tr(
+            'Catat kedatangan dan pengambilan barang sekaligus dalam satu formulir; pemakaian otomatis divalidasi terhadap stok tersedia.',
+            'Record incoming stock and item usage in a single form; usage is automatically validated against available stock.'
+          )}
         </p>
       </div>
 
@@ -211,11 +234,11 @@ export const TransactionsPage: React.FC = () => {
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     globalType === 'PAKAI'
-                      ? 'bg-[#E60012] text-white'
+                      ? 'bg-theme-primary text-white'
                       : 'text-neutral-600 dark:text-neutral-400'
                   }`}
                 >
-                  Ambil / Pakai Barang
+                  {tr('Ambil / Pakai Barang', 'Issue / Use Stock')}
                 </button>
                 <button
                   type="button"
@@ -229,7 +252,7 @@ export const TransactionsPage: React.FC = () => {
                       : 'text-neutral-600 dark:text-neutral-400'
                   }`}
                 >
-                  Kedatangan / Terima Barang
+                  {tr('Kedatangan / Terima Barang', 'Receive / Stock In')}
                 </button>
               </div>
               <input
@@ -245,8 +268,8 @@ export const TransactionsPage: React.FC = () => {
               onClick={openScanner}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800"
             >
-              <QrCode className="w-4 h-4 text-[#E60012]" />
-              Pindai QR / Barcode
+              <QrCode className="w-4 h-4 text-theme-primary" />
+              {tr('Pindai QR / Barcode', 'Scan QR / Barcode')}
             </button>
           </div>
 
@@ -271,7 +294,7 @@ export const TransactionsPage: React.FC = () => {
                       {activeItems.map((it) => (
                         <option key={it.id} value={it.id}>
                           {it.codeItem ? `[${it.codeItem}] ` : ''}
-                          {it.itemName} (Stok: {it.currentStock} {it.uom})
+                          {it.itemName} ({tr('Stok', 'Stock')}: {it.currentStock} {it.uom})
                         </option>
                       ))}
                     </select>
@@ -290,8 +313,8 @@ export const TransactionsPage: React.FC = () => {
                       }
                       className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] font-semibold"
                     >
-                      <option value="PAKAI">Pakai (-)</option>
-                      <option value="TERIMA">Terima (+)</option>
+                      <option value="PAKAI">{tr('Pakai (-)', 'Use (-)')}</option>
+                      <option value="TERIMA">{tr('Terima (+)', 'Receive (+)')}</option>
                     </select>
                   </div>
                   <div className="md:col-span-2 flex items-center gap-1.5">
@@ -322,7 +345,7 @@ export const TransactionsPage: React.FC = () => {
                           prev.map((l) => (l.key === line.key ? { ...l, note: e.target.value } : l))
                         )
                       }
-                      placeholder="Catatan keperluan..."
+                      placeholder={tr('Catatan keperluan...', 'Purpose / notes...')}
                       className="w-full px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F]"
                     />
                   </div>
@@ -332,7 +355,7 @@ export const TransactionsPage: React.FC = () => {
                       disabled={lines.length <= 1}
                       onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
                       className="p-2 rounded-lg text-neutral-400 hover:text-red-600 disabled:opacity-30"
-                      aria-label="Hapus baris"
+                      aria-label={tr('Hapus baris', 'Remove row')}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -357,17 +380,17 @@ export const TransactionsPage: React.FC = () => {
                   },
                 ])
               }
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 text-xs font-semibold hover:border-[#E60012]"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 text-xs font-semibold hover:border-theme-primary"
             >
               <Plus className="w-4 h-4" />
-              Tambah Baris Item
+              {tr('Tambah Baris Item', 'Add Item Row')}
             </button>
 
             <button
               type="submit"
-              className="px-5 py-2.5 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold transition-colors"
+              className="px-5 py-2.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold transition-colors"
             >
-              Simpan Transaksi ke Buku Log ({lines.length})
+              {tr('Simpan Transaksi ke Buku Log', 'Save Transactions to Logbook')} ({lines.length})
             </button>
           </div>
         </form>
@@ -377,8 +400,15 @@ export const TransactionsPage: React.FC = () => {
       <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-bold">Buku Log Digital Transaksi ({filteredTxs.length})</h3>
-            <p className="text-xs text-neutral-500">Rekam jejak seluruh barang masuk, keluar, dan penyesuaian opname</p>
+            <h3 className="text-sm font-bold">
+              {tr('Buku Log Digital Transaksi', 'Digital Transaction Logbook')} ({filteredTxs.length})
+            </h3>
+            <p className="text-xs text-neutral-500">
+              {tr(
+                'Rekam jejak seluruh barang masuk, keluar, dan penyesuaian opname',
+                'Complete trail of all incoming stock, usage, and stocktake adjustments'
+              )}
+            </p>
           </div>
           <button
             type="button"
@@ -386,7 +416,7 @@ export const TransactionsPage: React.FC = () => {
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800"
           >
             <Download className="w-3.5 h-3.5" />
-            Ekspor Buku Log
+            {tr('Ekspor Buku Log', 'Export Logbook')}
           </button>
         </div>
 
@@ -397,7 +427,7 @@ export const TransactionsPage: React.FC = () => {
               type="text"
               value={logSearch}
               onChange={(e) => setLogSearch(e.target.value)}
-              placeholder="Cari item, pencatat, atau catatan..."
+              placeholder={tr('Cari item, pencatat, atau catatan...', 'Search item, recorder, or notes...')}
               className="w-full pl-9 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114] text-xs"
             />
           </div>
@@ -406,20 +436,20 @@ export const TransactionsPage: React.FC = () => {
             onChange={(e) => setLogType(e.target.value as typeof logType)}
             className="w-full sm:w-auto px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
           >
-            <option value="ALL">Semua Tipe</option>
-            <option value="TERIMA">Terima (+)</option>
-            <option value="PAKAI">Pakai (-)</option>
-            <option value="OPNAME_ADJ">Penyesuaian Opname</option>
+            <option value="ALL">{tr('Semua Tipe', 'All Types')}</option>
+            <option value="TERIMA">{tr('Terima (+)', 'Receive (+)')}</option>
+            <option value="PAKAI">{tr('Pakai (-)', 'Use (-)')}</option>
+            <option value="OPNAME_ADJ">{tr('Penyesuaian Opname', 'Opname Adjustment')}</option>
           </select>
           <select
             value={logPeriod}
             onChange={(e) => setLogPeriod(e.target.value)}
             className="w-full sm:w-auto px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
           >
-            <option value="ALL">Semua Periode</option>
+            <option value="ALL">{tr('Semua Periode', 'All Periods')}</option>
             {periods.map((p) => (
               <option key={p} value={p}>
-                {formatPeriodShort(p)}
+                {formatPeriodShort(p, language)}
               </option>
             ))}
           </select>
@@ -428,7 +458,7 @@ export const TransactionsPage: React.FC = () => {
             onChange={(e) => setLogItem(e.target.value)}
             className="w-full sm:w-auto sm:max-w-[220px] min-w-0 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
           >
-            <option value="ALL">Semua Item</option>
+            <option value="ALL">{tr('Semua Item', 'All Items')}</option>
             {activeItems.map((it) => (
               <option key={it.id} value={it.id}>
                 {it.itemName}
@@ -439,27 +469,30 @@ export const TransactionsPage: React.FC = () => {
 
         {filteredTxs.length === 0 ? (
           <EmptyState
-            title="Belum ada transaksi sesuai filter"
-            description="Ubah filter periode atau kata kunci pencarian untuk melihat catatan buku log."
+            title={tr('Belum ada transaksi sesuai filter', 'No transactions match this filter')}
+            description={tr(
+              'Ubah filter periode atau kata kunci pencarian untuk melihat catatan buku log.',
+              'Adjust the period filter or search keywords to view logbook records.'
+            )}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-neutral-200 dark:border-neutral-800 text-left text-neutral-500">
-                  <th className="py-2.5 pr-3 font-semibold">Tanggal</th>
-                  <th className="py-2.5 px-2 font-semibold">Tipe</th>
-                  <th className="py-2.5 px-2 font-semibold">Kode · Item</th>
-                  <th className="py-2.5 px-2 font-semibold text-right">Jumlah</th>
-                  <th className="py-2.5 px-2 font-semibold">Pencatat</th>
-                  <th className="py-2.5 pl-2 font-semibold">Catatan</th>
+                  <th className="py-2.5 pr-3 font-semibold">{tr('Tanggal', 'Date')}</th>
+                  <th className="py-2.5 px-2 font-semibold">{tr('Tipe', 'Type')}</th>
+                  <th className="py-2.5 px-2 font-semibold">{tr('Kode · Item', 'Code · Item')}</th>
+                  <th className="py-2.5 px-2 font-semibold text-right">{tr('Jumlah', 'Qty')}</th>
+                  <th className="py-2.5 px-2 font-semibold">{tr('Pencatat', 'Recorded By')}</th>
+                  <th className="py-2.5 pl-2 font-semibold">{tr('Catatan', 'Notes')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {filteredTxs.slice(0, 60).map((t) => (
                   <tr key={t.id} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/30">
                     <td className="py-2.5 pr-3 font-mono-num whitespace-nowrap">
-                      {formatDateIndo(t.date)}
+                      {formatDateIndo(t.date, language)}
                     </td>
                     <td className="py-2.5 px-2">
                       <span
@@ -467,7 +500,7 @@ export const TransactionsPage: React.FC = () => {
                           t.type === 'TERIMA'
                             ? 'text-emerald-700 dark:text-emerald-400'
                             : t.type === 'PAKAI'
-                            ? 'text-[#E60012]'
+                            ? 'text-theme-primary'
                             : 'text-amber-600'
                         }`}
                       >
@@ -476,7 +509,11 @@ export const TransactionsPage: React.FC = () => {
                         ) : (
                           <ArrowUpRight className="w-3.5 h-3.5" />
                         )}
-                        {t.type}
+                        {t.type === 'TERIMA'
+                          ? tr('TERIMA', 'RECEIVE')
+                          : t.type === 'PAKAI'
+                          ? tr('PAKAI', 'USE')
+                          : tr('OPNAME', 'OPNAME')}
                       </span>
                     </td>
                     <td className="py-2.5 px-2">
@@ -507,8 +544,8 @@ export const TransactionsPage: React.FC = () => {
           <div className="w-full max-w-md rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold flex items-center gap-2">
-                <Camera className="w-4 h-4 text-[#E60012]" />
-                Pemindai QR / Barcode Item
+                <Camera className="w-4 h-4 text-theme-primary" />
+                {tr('Pemindai QR / Barcode Item', 'Item QR / Barcode Scanner')}
               </h3>
               <button
                 type="button"
@@ -535,20 +572,23 @@ export const TransactionsPage: React.FC = () => {
             )}
             <form onSubmit={handleScanLookup} className="space-y-3 text-xs">
               <label className="block font-semibold">
-                Atau masukkan Code Item / Nama Barang hasil pindai:
+                {tr(
+                  'Atau masukkan Code Item / Nama Barang hasil pindai:',
+                  'Or enter scanned Item Code / Item Name:'
+                )}
               </label>
               <input
                 type="text"
                 value={scanCodeInput}
                 onChange={(e) => setScanCodeInput(e.target.value)}
-                placeholder="Contoh: 20355 atau Cutter"
+                placeholder={tr('Contoh: 20355 atau Cutter', 'Example: 20355 or Cutter')}
                 className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
               />
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-xl bg-[#E60012] text-white font-semibold"
+                className="w-full py-2.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white font-semibold"
               >
-                Tambahkan ke Form Transaksi
+                {tr('Tambahkan ke Form Transaksi', 'Add to Transaction Form')}
               </button>
             </form>
           </div>

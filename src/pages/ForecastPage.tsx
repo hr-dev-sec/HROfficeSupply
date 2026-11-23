@@ -29,6 +29,7 @@ import {
 } from '../components/documents/DocumentModal';
 import { RollingForecastDocument } from '../components/forecast/RollingForecastDocument';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
 import { useToast } from '../context/ToastContext';
 import { FORECAST_MONTH_KEYS, type ForecastMonthKey, type SystemDocument } from '../types';
@@ -58,6 +59,7 @@ function forecastMonthKeyToPeriod(monthKey: ForecastMonthKey): string {
 
 export const ForecastPage: React.FC = () => {
   const { user, canEditOperational, isSuperAdmin } = useAuth();
+  const { language, tr } = useLanguage();
   const {
     store,
     setActiveForecastMonth,
@@ -169,9 +171,13 @@ export const ForecastPage: React.FC = () => {
           pageEls,
           `RF_Office_Supplies_GA_${rf.fiscalYearLabel}_${activeMonth}.pdf`
         );
-        toast('PDF Rolling Forecast berhasil diunduh', 'success', `Format A3 Landscape (${pageEls.length} halaman)`);
+        toast(
+          tr('PDF Rolling Forecast berhasil diunduh', 'Rolling Forecast PDF downloaded'),
+          'success',
+          tr(`Format A3 Landscape (${pageEls.length} halaman)`, `A3 Landscape (${pageEls.length} pages)`)
+        );
       } catch {
-        toast('Gagal mengekspor PDF Rolling Forecast', 'error');
+        toast(tr('Gagal mengekspor PDF Rolling Forecast', 'Failed to export Rolling Forecast PDF'), 'error');
       } finally {
         setExportingPdf(false);
       }
@@ -181,9 +187,12 @@ export const ForecastPage: React.FC = () => {
   const handleExportExcel = () => {
     exportRollingForecastToExcel(rf);
     toast(
-      'Excel Rolling Forecast berhasil diunduh',
+      tr('Excel Rolling Forecast berhasil diunduh', 'Rolling Forecast Excel downloaded'),
       'success',
-      `Sheet RF ${rf.fiscalYearLabel} & List Item GA (114 item)`
+      tr(
+        `Sheet RF ${rf.fiscalYearLabel} & List Item GA (${rf.rows.length} item)`,
+        `RF ${rf.fiscalYearLabel} & GA Item Catalog (${rf.rows.length} items)`
+      )
     );
   };
 
@@ -191,7 +200,9 @@ export const ForecastPage: React.FC = () => {
     if (!user) return;
     const count = syncForecastStockFromMaster(user);
     toast(
-      count > 0 ? `${count} item R/M Stock diperbarui` : 'R/M Stock sudah sinkron dengan Master Item',
+      count > 0
+        ? tr(`${count} item R/M Stock diperbarui`, `${count} R/M Stock item(s) updated`)
+        : tr('R/M Stock sudah sinkron dengan Master Item', 'R/M Stock is already synced with Master Items'),
       'success'
     );
   };
@@ -201,8 +212,14 @@ export const ForecastPage: React.FC = () => {
     const count = prefillCriticalForecast(activeMonth, user);
     toast(
       count > 0
-        ? `${count} item stok kritis otomatis terisi ke forecast ${activeMonth}`
-        : 'Tidak ada item Office Supplies stok kritis yang cocok di katalog GA',
+        ? tr(
+            `${count} item stok kritis otomatis terisi ke forecast ${activeMonth}`,
+            `${count} critical-stock item(s) auto-filled into ${activeMonth} forecast`
+          )
+        : tr(
+            'Tidak ada item Office Supplies stok kritis yang cocok di katalog GA',
+            'No matching critical Office Supplies items found in GA catalog'
+          ),
       count > 0 ? 'success' : 'info'
     );
   };
@@ -212,8 +229,11 @@ export const ForecastPage: React.FC = () => {
     const count = copyForecastMonth(prevMonth, activeMonth, user);
     toast(
       count > 0
-        ? `${count} baris disalin dari ${prevMonth} ke ${activeMonth}`
-        : `Tidak ada isian forecast pada bulan ${prevMonth}`,
+        ? tr(
+            `${count} baris disalin dari ${prevMonth} ke ${activeMonth}`,
+            `${count} row(s) copied from ${prevMonth} to ${activeMonth}`
+          )
+        : tr(`Tidak ada isian forecast pada bulan ${prevMonth}`, `No forecast entries found for ${prevMonth}`),
       count > 0 ? 'success' : 'info'
     );
   };
@@ -234,7 +254,7 @@ export const ForecastPage: React.FC = () => {
       },
       user
     );
-    toast('Item baru ditambahkan ke daftar Rolling Forecast', 'success');
+    toast(tr('Item baru ditambahkan ke daftar Rolling Forecast', 'New item added to Rolling Forecast'), 'success');
     setAddModalOpen(false);
     setNewRowForm({
       jenis: uniqueJenisList[0]?.jenis || 'Cutter',
@@ -255,9 +275,15 @@ export const ForecastPage: React.FC = () => {
     setSubmitModalOpen(false);
     setSubmitNote('');
     toast(
-      `Update Forecast ${sub.month} tercatat siap kirim ke GA Dept.`,
+      tr(
+        `Update Forecast ${sub.month} tercatat siap kirim ke GA Dept.`,
+        `${sub.month} Forecast Update logged for GA Dept.`
+      ),
       'success',
-      `${sub.totalItemsRequested} item (${sub.totalUnitsRequested} unit) — silakan ekspor PDF / Excel.`
+      tr(
+        `${sub.totalItemsRequested} item (${sub.totalUnitsRequested} unit) — silakan ekspor PDF / Excel.`,
+        `${sub.totalItemsRequested} items (${sub.totalUnitsRequested} units) — ready to export PDF / Excel.`
+      )
     );
   };
 
@@ -266,15 +292,19 @@ export const ForecastPage: React.FC = () => {
       {/* Header & Main Export Actions */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="min-w-0">
-          <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#E60012] mb-1">
+          <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-theme-primary mb-1">
             <CalendarRange className="w-3.5 h-3.5" />
-            Request Office Supplies Melalui GA Dept.
+            {tr('Request Office Supplies Melalui GA Dept.', 'Office Supplies Requests via GA Dept.')}
           </div>
           <h2 className="text-xl sm:text-2xl font-extrabold font-display tracking-tight">
             Rolling Forecast Office Supplies {rf.fiscalYearLabel}
           </h2>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {rf.periodRangeLabel} · {rf.department} ({rf.section}) — HR hanya melakukan update forecast pemesanan bulanan ke GA Dept.
+            {rf.periodRangeLabel} · {rf.department} ({rf.section}) —{' '}
+            {tr(
+              'HR hanya melakukan update forecast pemesanan bulanan ke GA Dept.',
+              'HR submits monthly order forecast updates to GA Dept.'
+            )}
           </p>
         </div>
 
@@ -282,38 +312,38 @@ export const ForecastPage: React.FC = () => {
           <button
             type="button"
             onClick={handleExportExcel}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            Ekspor Excel (.xlsx)
+            {tr('Ekspor Excel (.xlsx)', 'Export Excel (.xlsx)')}
           </button>
           <button
             type="button"
             disabled={exportingPdf}
             onClick={handleExportPdf}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50 cursor-pointer"
           >
-            <Download className="w-4 h-4 text-[#E60012]" />
-            {exportingPdf ? 'Menyiapkan PDF...' : 'Ekspor PDF (A3)'}
+            <Download className="w-4 h-4 text-theme-primary" />
+            {exportingPdf ? tr('Menyiapkan PDF...', 'Preparing PDF...') : tr('Ekspor PDF (A3)', 'Export PDF (A3)')}
           </button>
           {canEditOperational && (
             <button
               type="button"
               onClick={() => setUploadDocOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:border-[#E60012] transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:border-theme-primary transition-colors cursor-pointer"
             >
-              <Upload className="w-3.5 h-3.5 text-[#E60012]" />
-              Unggah Dokumen GA
+              <Upload className="w-3.5 h-3.5 text-theme-primary" />
+              {tr('Unggah Dokumen GA', 'Upload GA Document')}
             </button>
           )}
           {canEditOperational && (
             <button
               type="button"
               onClick={() => setSubmitModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold shadow-sm transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
-              Catat Update GA ({activeMonth})
+              {tr('Catat Update GA', 'Log GA Update')} ({activeMonth})
             </button>
           )}
         </div>
@@ -324,8 +354,8 @@ export const ForecastPage: React.FC = () => {
         <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-2.5 text-xs">
           <div className="flex items-center justify-between gap-2">
             <div className="font-bold flex items-center gap-1.5">
-              <Paperclip className="w-3.5 h-3.5 text-[#E60012]" />
-              Arsip Dokumen Rolling Forecast GA ({forecastDocs.length})
+              <Paperclip className="w-3.5 h-3.5 text-theme-primary" />
+              {tr('Arsip Dokumen Rolling Forecast GA', 'GA Rolling Forecast Document Archive')} ({forecastDocs.length})
             </div>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -337,11 +367,11 @@ export const ForecastPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setPreviewDoc(doc)}
-                  className="flex items-center gap-2 min-w-0 text-left flex-1 group"
+                  className="flex items-center gap-2 min-w-0 text-left flex-1 group cursor-pointer"
                 >
                   {renderDocumentIcon(doc, 'w-4 h-4 shrink-0')}
                   <div className="min-w-0">
-                    <div className="font-semibold truncate group-hover:text-[#E60012] transition">
+                    <div className="font-semibold truncate group-hover:text-theme-primary transition">
                       {doc.title}
                     </div>
                     <div className="text-[10px] text-neutral-500 font-mono-num truncate">
@@ -353,16 +383,16 @@ export const ForecastPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setPreviewDoc(doc)}
-                    title="Pratinjau"
-                    className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-neutral-800 text-[#E60012]"
+                    title={tr('Pratinjau', 'Preview')}
+                    className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-neutral-800 text-theme-primary cursor-pointer"
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
                     onClick={() => downloadSystemDocument(doc)}
-                    title="Unduh"
-                    className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-neutral-800"
+                    title={tr('Unduh', 'Download')}
+                    className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-neutral-800 cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
                   </button>
@@ -372,10 +402,10 @@ export const ForecastPage: React.FC = () => {
                       onClick={() => {
                         if (!user) return;
                         deleteDocument(doc.id, user);
-                        toast('Dokumen Rolling Forecast dihapus', 'success');
+                        toast(tr('Dokumen Rolling Forecast dihapus', 'Rolling Forecast document deleted'), 'success');
                       }}
-                      title="Hapus"
-                      className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600"
+                      title={tr('Hapus', 'Delete')}
+                      className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -390,44 +420,50 @@ export const ForecastPage: React.FC = () => {
       {/* KPI Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
-          <div className="text-xs text-neutral-500">Katalog Resmi GA Dept.</div>
+          <div className="text-xs text-neutral-500">
+            {tr('Katalog Resmi GA Dept.', 'Official GA Dept. Catalog')}
+          </div>
           <div className="text-2xl font-extrabold font-display mt-1 tabular-nums">
-            {stats.totalCatalog} Item
+            {stats.totalCatalog} {tr('Item', 'Items')}
           </div>
           <div className="text-[11px] text-neutral-500 mt-0.5">
-            Terkelompok dalam {stats.totalJenis} jenis barang
+            {tr(`Terkelompok dalam ${stats.totalJenis} jenis barang`, `Grouped into ${stats.totalJenis} item categories`)}
           </div>
         </div>
 
         <div className="p-4 rounded-2xl border border-amber-300/80 dark:border-amber-800/70 bg-amber-50/70 dark:bg-amber-950/20">
           <div className="text-xs font-medium text-amber-800 dark:text-amber-300">
-            Bulan Aktif Update RF
+            {tr('Bulan Aktif Update RF', 'Active RF Update Month')}
           </div>
           <div className="text-2xl font-extrabold font-display text-amber-900 dark:text-amber-200 mt-1">
             {activeMonth}
           </div>
           <div className="text-[11px] text-amber-700/80 dark:text-amber-400 mt-0.5">
-            Kolom sorotan kuning pada dokumen GA
+            {tr('Kolom sorotan kuning pada dokumen GA', 'Yellow highlighted column on GA sheet')}
           </div>
         </div>
 
         <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
-          <div className="text-xs text-neutral-500">Forecast Bulan {activeMonth}</div>
-          <div className="text-2xl font-extrabold font-display text-[#E60012] mt-1 tabular-nums">
-            {stats.filledCount} Item · {stats.totalUnits} Unit
+          <div className="text-xs text-neutral-500">
+            {tr('Forecast Bulan', 'Month Forecast')} {activeMonth}
+          </div>
+          <div className="text-2xl font-extrabold font-display text-theme-primary mt-1 tabular-nums">
+            {stats.filledCount} {tr('Item', 'Items')} · {stats.totalUnits} {tr('Unit', 'Units')}
           </div>
           <div className="text-[11px] text-neutral-500 mt-0.5">
-            Diisi untuk periode pemesanan ini
+            {tr('Diisi untuk periode pemesanan ini', 'Filled for this ordering period')}
           </div>
         </div>
 
         <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
-          <div className="text-xs text-neutral-500">Item R/M Stock Kosong (0)</div>
+          <div className="text-xs text-neutral-500">
+            {tr('Item R/M Stock Kosong (0)', 'Zero R/M Stock Items (0)')}
+          </div>
           <div className="text-2xl font-extrabold font-display mt-1 tabular-nums">
-            {stats.zeroStockCount} Item
+            {stats.zeroStockCount} {tr('Item', 'Items')}
           </div>
           <div className="text-[11px] text-neutral-500 mt-0.5">
-            Terakhir diperbarui oleh {rf.lastUpdatedBy}
+            {tr('Terakhir diperbarui oleh', 'Last updated by')} {rf.lastUpdatedBy}
           </div>
         </div>
       </div>
@@ -438,44 +474,52 @@ export const ForecastPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setTab('FORM')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               tab === 'FORM' ? 'bg-white dark:bg-[#171A1F] shadow-sm' : 'text-neutral-500'
             }`}
           >
             <ClipboardList className="w-3.5 h-3.5" />
-            Form Update Bulanan
+            {tr('Form Update Bulanan', 'Monthly Update Form')}
           </button>
           <button
             type="button"
             onClick={() => setTab('DOCUMENT')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               tab === 'DOCUMENT' ? 'bg-white dark:bg-[#171A1F] shadow-sm' : 'text-neutral-500'
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            Pratinjau Dokumen RF (PDF A3)
+            {tr('Pratinjau Dokumen RF (PDF A3)', 'RF Document Preview (A3 PDF)')}
           </button>
           <button
             type="button"
             onClick={() => setTab('CATALOG')}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               tab === 'CATALOG' ? 'bg-white dark:bg-[#171A1F] shadow-sm' : 'text-neutral-500'
             }`}
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
-            List Item GA ({rf.rows.length})
+            {tr('List Item GA', 'GA Item List')} ({rf.rows.length})
           </button>
         </div>
 
         {/* Active Month Selector */}
         <div className="flex items-center gap-2 text-xs">
-          <span className="font-semibold text-neutral-500">Pilih Bulan Update:</span>
+          <span className="font-semibold text-neutral-500">
+            {tr('Pilih Bulan Update:', 'Select Update Month:')}
+          </span>
           <select
             value={activeMonth}
             onChange={(e) => {
               if (!user) return;
               setActiveForecastMonth(e.target.value as ForecastMonthKey, user);
-              toast(`Bulan aktif RF diubah ke ${e.target.value}`, 'info');
+              toast(
+                tr(
+                  `Bulan aktif RF diubah ke ${e.target.value}`,
+                  `Active RF month changed to ${e.target.value}`
+                ),
+                'info'
+              );
             }}
             disabled={!canEditOperational}
             className="px-3 py-1.5 rounded-xl border border-amber-400 bg-amber-50 dark:bg-amber-950/30 font-bold text-xs"
@@ -500,7 +544,10 @@ export const ForecastPage: React.FC = () => {
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Cari deskripsi item, code item, atau jenis..."
+                  placeholder={tr(
+                    'Cari deskripsi item, code item, atau jenis...',
+                    'Search item description, item code, or category...'
+                  )}
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114] text-xs"
                 />
               </div>
@@ -511,7 +558,9 @@ export const ForecastPage: React.FC = () => {
                   onChange={(e) => setJenisFilter(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
                 >
-                  <option value="ALL">Semua Jenis ({uniqueJenisList.length})</option>
+                  <option value="ALL">
+                    {tr('Semua Jenis', 'All Categories')} ({uniqueJenisList.length})
+                  </option>
                   {uniqueJenisList.map((j) => (
                     <option key={j.jenis} value={j.jenis}>
                       {j.jenisNo}. {j.jenis}
@@ -525,7 +574,7 @@ export const ForecastPage: React.FC = () => {
                     checked={onlyFilled}
                     onChange={(e) => setOnlyFilled(e.target.checked)}
                   />
-                  Hanya Terisi ({activeMonth})
+                  {tr('Hanya Terisi', 'Filled Only')} ({activeMonth})
                 </label>
 
                 <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-medium cursor-pointer">
@@ -544,36 +593,36 @@ export const ForecastPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleSyncStock}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-semibold transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-semibold transition-colors cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-sky-600" />
-                  Sinkron R/M Stock dari Master Item
+                  {tr('Sinkron R/M Stock dari Master Item', 'Sync R/M Stock from Master Items')}
                 </button>
                 <button
                   type="button"
                   onClick={handlePrefillCritical}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 text-xs font-semibold transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/25 text-xs font-semibold transition-colors cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  Isi Otomatis dari Item Kritis ({activeMonth})
+                  {tr('Isi Otomatis dari Item Kritis', 'Auto-Fill Critical Items')} ({activeMonth})
                 </button>
                 {prevMonth && (
                   <button
                     type="button"
                     onClick={handleCopyPrevMonth}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-semibold transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-xs font-semibold transition-colors cursor-pointer"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    Salin Isian dari {prevMonth}
+                    {tr('Salin Isian dari', 'Copy Entries from')} {prevMonth}
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setAddModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E60012]/40 text-[#E60012] hover:bg-[#E60012]/10 text-xs font-semibold transition-colors ml-auto"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-theme-primary text-theme-primary hover:bg-theme-primary-soft text-xs font-semibold transition-colors ml-auto cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Tambah Item ke RF
+                  {tr('Tambah Item ke RF', 'Add Item to RF')}
                 </button>
               </div>
             )}
@@ -586,7 +635,7 @@ export const ForecastPage: React.FC = () => {
                 <thead className="sticky top-0 z-10 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800">
                   <tr className="text-left text-neutral-600 dark:text-neutral-300">
                     <th className="p-2.5 font-semibold w-12 text-center">No.</th>
-                    <th className="p-2.5 font-semibold min-w-[140px]">Jenis</th>
+                    <th className="p-2.5 font-semibold min-w-[140px]">{tr('Jenis', 'Category')}</th>
                     <th className="p-2.5 font-semibold w-20 text-center">Code</th>
                     <th className="p-2.5 font-semibold min-w-[230px]">item_description</th>
                     <th className="p-2.5 font-semibold w-14 text-center">UOM</th>
@@ -594,8 +643,10 @@ export const ForecastPage: React.FC = () => {
                     <th className="p-2.5 font-bold w-24 text-center bg-[#FDE047]/70 text-black border-x border-amber-400">
                       RF {activeMonth}
                     </th>
-                    <th className="p-2.5 font-semibold min-w-[190px]">Est. Pemakaian per bulan</th>
-                    <th className="p-2.5 font-semibold min-w-[210px]">Keterangan</th>
+                    <th className="p-2.5 font-semibold min-w-[190px]">
+                      {tr('Est. Pemakaian per bulan', 'Est. Monthly Usage')}
+                    </th>
+                    <th className="p-2.5 font-semibold min-w-[210px]">{tr('Keterangan', 'Remarks')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -665,10 +716,10 @@ export const ForecastPage: React.FC = () => {
                                   user || undefined
                                 );
                               }}
-                              className="w-16 text-center px-1.5 py-1 rounded-lg border border-amber-400 bg-white dark:bg-[#0F1114] font-mono-num font-bold text-[#E60012]"
+                              className="w-16 text-center px-1.5 py-1 rounded-lg border border-amber-400 bg-white dark:bg-[#0F1114] font-mono-num font-bold text-theme-primary"
                             />
                           ) : (
-                            <span className="font-mono-num font-bold text-[#E60012]">
+                            <span className="font-mono-num font-bold text-theme-primary">
                               {hasOrder ? activeVal : '-'}
                             </span>
                           )}
@@ -678,7 +729,7 @@ export const ForecastPage: React.FC = () => {
                             <input
                               type="text"
                               value={row.estPemakaian}
-                              placeholder="Contoh: 1 pack pemakaian per bulan"
+                              placeholder={tr('Contoh: 1 pack pemakaian per bulan', 'Example: 1 pack per month')}
                               onChange={(e) =>
                                 updateForecastRow(
                                   row.id,
@@ -697,7 +748,7 @@ export const ForecastPage: React.FC = () => {
                             <textarea
                               rows={1}
                               value={row.keterangan}
-                              placeholder="Catatan / PIC penerima..."
+                              placeholder={tr('Catatan / PIC penerima...', 'Notes / Recipient PIC...')}
                               onChange={(e) =>
                                 updateForecastRow(
                                   row.id,
@@ -719,10 +770,14 @@ export const ForecastPage: React.FC = () => {
             </div>
             <div className="px-4 py-2.5 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40 flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-500">
               <span>
-                Menampilkan <strong>{filteredRows.length}</strong> dari {rf.rows.length} item katalog GA
+                {tr('Menampilkan', 'Showing')} <strong>{filteredRows.length}</strong>{' '}
+                {tr('dari', 'of')} {rf.rows.length} {tr('item katalog GA', 'GA catalog items')}
               </span>
               <span>
-                Semua perubahan langsung tersimpan otomatis &amp; siap diekspor ke PDF / Excel
+                {tr(
+                  'Semua perubahan langsung tersimpan otomatis & siap diekspor ke PDF / Excel',
+                  'All changes auto-save immediately & are ready to export to PDF / Excel'
+                )}
               </span>
             </div>
           </div>
@@ -732,10 +787,10 @@ export const ForecastPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold flex items-center gap-2">
                 <History className="w-4 h-4 text-[#C9A24B]" />
-                Riwayat Update Rolling Forecast ke GA Dept.
+                {tr('Riwayat Update Rolling Forecast ke GA Dept.', 'GA Dept. Rolling Forecast Update History')}
               </h3>
               <span className="text-[11px] text-neutral-500">
-                {rf.submissions.length} catatan pengiriman
+                {rf.submissions.length} {tr('catatan pengiriman', 'submission log(s)')}
               </span>
             </div>
             <div className="divide-y divide-neutral-100 dark:divide-neutral-800 text-xs">
@@ -747,14 +802,14 @@ export const ForecastPage: React.FC = () => {
                   <div>
                     <div className="font-bold flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      Periode {sub.month} — {sub.totalItemsRequested} item ({sub.totalUnitsRequested}{' '}
-                      unit)
+                      {tr('Periode', 'Period')} {sub.month} — {sub.totalItemsRequested}{' '}
+                      {tr('item', 'items')} ({sub.totalUnitsRequested} {tr('unit', 'units')})
                     </div>
                     <div className="text-neutral-500 mt-0.5">{sub.note}</div>
                   </div>
                   <div className="text-right text-[11px] text-neutral-500 font-mono-num">
                     <div>{sub.submittedByName}</div>
-                    <div>{formatDateTimeIndo(sub.submittedAt)}</div>
+                    <div>{formatDateTimeIndo(sub.submittedAt, language)}</div>
                   </div>
                 </div>
               ))}
@@ -768,7 +823,10 @@ export const ForecastPage: React.FC = () => {
           <div className="p-3.5 rounded-xl border border-amber-300/80 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
             <span className="inline-flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              Pratinjau Dokumen Rolling Forecast resmi format GA Dept. (2 halaman A3 Landscape). Gunakan tombol Ekspor PDF (A3) atau Ekspor Excel di atas.
+              {tr(
+                'Pratinjau Dokumen Rolling Forecast resmi format GA Dept. (2 halaman A3 Landscape). Gunakan tombol Ekspor PDF (A3) atau Ekspor Excel di atas.',
+                'Official GA Dept. Rolling Forecast Document preview (2-page A3 Landscape). Use Export PDF (A3) or Export Excel above.'
+              )}
             </span>
           </div>
           <div ref={docContainerRef} className="overflow-x-auto pb-4">
@@ -782,10 +840,16 @@ export const ForecastPage: React.FC = () => {
           <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold">
-                List Item Office Supplies (Request Melalui GA Dept.)
+                {tr(
+                  'List Item Office Supplies (Request Melalui GA Dept.)',
+                  'Office Supplies Item List (Requests via GA Dept.)'
+                )}
               </h3>
               <p className="text-xs text-neutral-500">
-                Referensi resmi {rf.rows.length} item &amp; {uniqueJenisList.length} jenis dari katalog GA Dept.
+                {tr(
+                  `Referensi resmi ${rf.rows.length} item & ${uniqueJenisList.length} jenis dari katalog GA Dept.`,
+                  `Official reference of ${rf.rows.length} items & ${uniqueJenisList.length} categories from GA Dept. catalog.`
+                )}
               </p>
             </div>
             <div className="relative w-full sm:w-72">
@@ -794,7 +858,7 @@ export const ForecastPage: React.FC = () => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cari item atau kode..."
+                placeholder={tr('Cari item atau kode...', 'Search item or code...')}
                 className="w-full pl-9 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114] text-xs"
               />
             </div>
@@ -803,8 +867,8 @@ export const ForecastPage: React.FC = () => {
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-neutral-100 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 text-left">
                 <tr>
-                  <th className="p-3 w-16 text-center">No. urut</th>
-                  <th className="p-3">Jenis</th>
+                  <th className="p-3 w-16 text-center">{tr('No. urut', 'Seq.')}</th>
+                  <th className="p-3">{tr('Jenis', 'Category')}</th>
                   <th className="p-3 w-14 text-center">No.</th>
                   <th className="p-3 w-24 text-center">Code Item</th>
                   <th className="p-3">Item_name</th>
@@ -818,7 +882,7 @@ export const ForecastPage: React.FC = () => {
                     <td className="p-2.5 text-center font-mono-num">{r.jenisNo}</td>
                     <td className="p-2.5 font-medium">{r.jenis}</td>
                     <td className="p-2.5 text-center font-mono-num">{r.itemNo}</td>
-                    <td className="p-2.5 text-center font-mono-num text-[#E60012] font-semibold">
+                    <td className="p-2.5 text-center font-mono-num text-theme-primary font-semibold">
                       {r.codeItem}
                     </td>
                     <td className="p-2.5 font-semibold">{r.itemName}</td>
@@ -842,14 +906,16 @@ export const ForecastPage: React.FC = () => {
             className="w-full max-w-lg rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4 text-xs"
           >
             <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800">
-              <h3 className="text-base font-bold">Tambah Item ke Rolling Forecast GA</h3>
-              <button type="button" onClick={() => setAddModalOpen(false)}>
+              <h3 className="text-base font-bold">
+                {tr('Tambah Item ke Rolling Forecast GA', 'Add Item to GA Rolling Forecast')}
+              </h3>
+              <button type="button" onClick={() => setAddModalOpen(false)} className="cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold mb-1">Jenis / Kategori</label>
+                <label className="block font-semibold mb-1">{tr('Jenis / Kategori', 'Type / Category')}</label>
                 <input
                   type="text"
                   required
@@ -870,12 +936,14 @@ export const ForecastPage: React.FC = () => {
                   type="text"
                   value={newRowForm.codeItem}
                   onChange={(e) => setNewRowForm({ ...newRowForm, codeItem: e.target.value })}
-                  placeholder="Contoh: 20355"
+                  placeholder={tr('Contoh: 20355', 'Example: 20355')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1">Deskripsi Item (item_description)</label>
+                <label className="block font-semibold mb-1">
+                  {tr('Deskripsi Item (item_description)', 'Item Description (item_description)')}
+                </label>
                 <input
                   type="text"
                   required
@@ -887,7 +955,7 @@ export const ForecastPage: React.FC = () => {
                       itemName: newRowForm.itemName || e.target.value,
                     })
                   }
-                  placeholder="Contoh: Kertas A4 80gr SIDU"
+                  placeholder={tr('Contoh: Kertas A4 80gr SIDU', 'Example: A4 Paper 80gsm SIDU')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
               </div>
@@ -906,7 +974,9 @@ export const ForecastPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block font-semibold mb-1">R/M Stock Saat Ini</label>
+                <label className="block font-semibold mb-1">
+                  {tr('R/M Stock Saat Ini', 'Current R/M Stock')}
+                </label>
                 <input
                   type="number"
                   min={0}
@@ -918,17 +988,19 @@ export const ForecastPage: React.FC = () => {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1">Est. Pemakaian per bulan</label>
+                <label className="block font-semibold mb-1">
+                  {tr('Est. Pemakaian per bulan', 'Est. Monthly Usage')}
+                </label>
                 <input
                   type="text"
                   value={newRowForm.estPemakaian}
                   onChange={(e) => setNewRowForm({ ...newRowForm, estPemakaian: e.target.value })}
-                  placeholder="Contoh: 2 pack pemakaian per bulan"
+                  placeholder={tr('Contoh: 2 pack pemakaian per bulan', 'Example: 2 packs per month')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1">Keterangan</label>
+                <label className="block font-semibold mb-1">{tr('Keterangan', 'Remarks')}</label>
                 <input
                   type="text"
                   value={newRowForm.keterangan}
@@ -941,15 +1013,15 @@ export const ForecastPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setAddModalOpen(false)}
-                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold"
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold cursor-pointer"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#E60012] text-white font-semibold"
+                className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white font-semibold cursor-pointer"
               >
-                Tambahkan ke RF
+                {tr('Tambahkan ke RF', 'Add to RF')}
               </button>
             </div>
           </form>
@@ -964,27 +1036,37 @@ export const ForecastPage: React.FC = () => {
             className="w-full max-w-md rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4 text-xs"
           >
             <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800">
-              <h3 className="text-base font-bold">Catat Update Rolling Forecast ke GA Dept.</h3>
-              <button type="button" onClick={() => setSubmitModalOpen(false)}>
+              <h3 className="text-base font-bold">
+                {tr('Catat Update Rolling Forecast ke GA Dept.', 'Log Rolling Forecast Update to GA Dept.')}
+              </h3>
+              <button type="button" onClick={() => setSubmitModalOpen(false)} className="cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 space-y-1">
               <div>
-                Bulan Update: <strong>{activeMonth}</strong>
+                {tr('Bulan Update:', 'Update Month:')} <strong>{activeMonth}</strong>
               </div>
               <div>
-                Total Item Dipesan: <strong>{stats.filledCount} item</strong> ({stats.totalUnits}{' '}
-                unit)
+                {tr('Total Item Dipesan:', 'Total Items Ordered:')}{' '}
+                <strong>
+                  {stats.filledCount} {tr('item', 'items')}
+                </strong>{' '}
+                ({stats.totalUnits} {tr('unit', 'units')})
               </div>
             </div>
             <div>
-              <label className="block font-semibold mb-1">Catatan Pengiriman ke GA Dept.</label>
+              <label className="block font-semibold mb-1">
+                {tr('Catatan Pengiriman ke GA Dept.', 'Submission Note for GA Dept.')}
+              </label>
               <textarea
                 rows={3}
                 value={submitNote}
                 onChange={(e) => setSubmitNote(e.target.value)}
-                placeholder={`Contoh: Update forecast pemesanan Office Supplies bulan ${activeMonth} untuk kebutuhan HR Development & HR Adm. Operation`}
+                placeholder={tr(
+                  `Contoh: Update forecast pemesanan Office Supplies bulan ${activeMonth} untuk kebutuhan HR Development & HR Adm. Operation`,
+                  `Example: Monthly Office Supplies order forecast for ${activeMonth} for HR Development & Administration & Operation`
+                )}
                 className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
               />
             </div>
@@ -992,16 +1074,16 @@ export const ForecastPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSubmitModalOpen(false)}
-                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold"
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold cursor-pointer"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#E60012] text-white font-semibold inline-flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white font-semibold inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
-                Simpan Log Update GA
+                {tr('Simpan Log Update GA', 'Save GA Update Log')}
               </button>
             </div>
           </form>

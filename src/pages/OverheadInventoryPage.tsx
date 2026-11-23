@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Check, Edit3, Eye, History, Image as ImageIcon, Plus, Search, Trash2, Upload, X, ZoomIn } from 'lucide-react';
 import { EmptyState } from '../components/common/EmptyState';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
 import { useToast } from '../context/ToastContext';
 import { processAndUploadImage } from '../services/mediaStorageService';
@@ -10,6 +11,7 @@ import { formatDateIndo } from '../utils/format';
 
 export const OverheadInventoryPage: React.FC = () => {
   const { user, canEditOperational } = useAuth();
+  const { language, tr } = useLanguage();
   const { store, getNextPartId, upsertInventoryItem, recordInventoryMutation } = useSupplyHub();
   const { toast } = useToast();
 
@@ -45,7 +47,7 @@ export const OverheadInventoryPage: React.FC = () => {
     e.preventDefault();
     if (!user || !editModal) return;
     if (!editModal.itemName?.trim()) {
-      toast('Nama item wajib diisi', 'error');
+      toast(tr('Nama item wajib diisi', 'Item name is required'), 'error');
       return;
     }
     const saved = upsertInventoryItem(
@@ -64,7 +66,7 @@ export const OverheadInventoryPage: React.FC = () => {
       },
       user
     );
-    toast(`Inventaris ${saved.partId} disimpan`, 'success');
+    toast(tr(`Inventaris ${saved.partId} disimpan`, `Asset ${saved.partId} saved`), 'success');
     setEditModal(null);
   };
 
@@ -72,7 +74,7 @@ export const OverheadInventoryPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      toast('Berkas harus berupa gambar (JPG, PNG, WebP)', 'error');
+      toast(tr('Berkas harus berupa gambar (JPG, PNG, WebP)', 'File must be an image (JPG, PNG, WebP)'), 'error');
       return;
     }
     try {
@@ -80,12 +82,14 @@ export const OverheadInventoryPage: React.FC = () => {
       const { url, uploadedToCloud } = await processAndUploadImage(file, 'inventories', entityId);
       setEditModal((prev) => (prev ? { ...prev, photoUrl: url } : prev));
       toast(
-        uploadedToCloud ? 'Foto aset diunggah ke Supabase Storage' : 'Foto aset berhasil dimuat',
+        uploadedToCloud
+          ? tr('Foto aset diunggah ke Supabase Storage', 'Asset photo uploaded to Supabase Storage')
+          : tr('Foto aset berhasil dimuat', 'Asset photo loaded'),
         'success',
-        'Klik "Simpan Aset" untuk menyimpan perubahan.'
+        tr('Klik "Simpan Aset" untuk menyimpan perubahan.', 'Click "Save Asset" to apply changes.')
       );
     } catch {
-      toast('Gagal memproses foto aset', 'error');
+      toast(tr('Gagal memproses foto aset', 'Failed to process asset photo'), 'error');
     }
     e.target.value = '';
   };
@@ -101,7 +105,7 @@ export const OverheadInventoryPage: React.FC = () => {
       mutNote,
       user
     );
-    toast(`Mutasi ${mutationModal.partId} dicatat`, 'success');
+    toast(tr(`Mutasi ${mutationModal.partId} dicatat`, `Mutation for ${mutationModal.partId} recorded`), 'success');
     setMutationModal(null);
     setMutNote('');
   };
@@ -110,9 +114,13 @@ export const OverheadInventoryPage: React.FC = () => {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold font-display">Inventaris Overhead</h2>
+          <h2 className="text-xl font-extrabold font-display">
+            {tr('Inventaris Overhead', 'Overhead Inventory')}
+          </h2>
           <p className="text-xs text-neutral-500">
-            Ketentuan kode Part_Id: <strong>MCH</strong> = Merchandise · <strong>ELC</strong> = Electronic · <strong>ATK</strong> = Alat Tulis Kantor
+            {tr('Ketentuan kode Part_Id:', 'Part_Id code rules:')}{' '}
+            <strong>MCH</strong> = Merchandise · <strong>ELC</strong> = Electronic · <strong>ATK</strong> ={' '}
+            {tr('Alat Tulis Kantor', 'Office Stationery')}
           </p>
         </div>
 
@@ -132,10 +140,10 @@ export const OverheadInventoryPage: React.FC = () => {
                 notes: '',
               })
             }
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
           >
             <Plus className="w-4 h-4" />
-            Tambah Aset Inventaris
+            {tr('Tambah Aset Inventaris', 'Add Inventory Asset')}
           </button>
         )}
       </div>
@@ -148,7 +156,7 @@ export const OverheadInventoryPage: React.FC = () => {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari Part_Id, nama aset, atau lokasi..."
+            placeholder={tr('Cari Part_Id, nama aset, atau lokasi...', 'Search Part_Id, asset name, or location...')}
             className="w-full pl-9 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114] text-xs"
           />
         </div>
@@ -157,26 +165,29 @@ export const OverheadInventoryPage: React.FC = () => {
           onChange={(e) => setPrefixFilter(e.target.value as 'ALL' | PartPrefix)}
           className="w-full sm:w-auto px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
         >
-          <option value="ALL">Semua Kode (MCH, ELC, ATK)</option>
+          <option value="ALL">{tr('Semua Kode (MCH, ELC, ATK)', 'All Codes (MCH, ELC, ATK)')}</option>
           <option value="MCH">MCH · Merchandise</option>
           <option value="ELC">ELC · Electronic</option>
-          <option value="ATK">ATK · Alat Tulis Kantor</option>
+          <option value="ATK">{tr('ATK · Alat Tulis Kantor', 'ATK · Office Stationery')}</option>
         </select>
         <select
           value={condFilter}
           onChange={(e) => setCondFilter(e.target.value as 'ALL' | 'BAGUS' | 'RUSAK')}
           className="w-full sm:w-auto px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
         >
-          <option value="ALL">Semua Kondisi</option>
-          <option value="BAGUS">Bagus</option>
-          <option value="RUSAK">Rusak</option>
+          <option value="ALL">{tr('Semua Kondisi', 'All Conditions')}</option>
+          <option value="BAGUS">{tr('Bagus', 'Good')}</option>
+          <option value="RUSAK">{tr('Rusak', 'Damaged')}</option>
         </select>
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState
-          title="Aset inventaris tidak ditemukan"
-          description="Coba ubah filter atau tambahkan item inventaris overhead baru."
+          title={tr('Aset inventaris tidak ditemukan', 'No inventory assets found')}
+          description={tr(
+            'Coba ubah filter atau tambahkan item inventaris overhead baru.',
+            'Try adjusting filters or add a new overhead inventory asset.'
+          )}
         />
       ) : (
         <div className="rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] overflow-hidden">
@@ -185,16 +196,16 @@ export const OverheadInventoryPage: React.FC = () => {
               <thead>
                 <tr className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 text-left text-neutral-500">
                   <th className="p-3 font-semibold">No.</th>
-                  <th className="p-3 font-semibold">Foto</th>
+                  <th className="p-3 font-semibold">{tr('Foto', 'Photo')}</th>
                   <th className="p-3 font-semibold">Part_Id</th>
-                  <th className="p-3 font-semibold">Item Name</th>
+                  <th className="p-3 font-semibold">{tr('Item Name', 'Item Name')}</th>
                   <th className="p-3 font-semibold text-right">QTY</th>
                   <th className="p-3 font-semibold">UOM</th>
-                  <th className="p-3 font-semibold">Lokasi Simpan</th>
-                  <th className="p-3 font-semibold text-center">Bagus</th>
-                  <th className="p-3 font-semibold text-center">Rusak</th>
-                  <th className="p-3 font-semibold">Keterangan</th>
-                  <th className="p-3 font-semibold text-right">Aksi</th>
+                  <th className="p-3 font-semibold">{tr('Lokasi Simpan', 'Storage Location')}</th>
+                  <th className="p-3 font-semibold text-center">{tr('Bagus', 'Good')}</th>
+                  <th className="p-3 font-semibold text-center">{tr('Rusak', 'Damaged')}</th>
+                  <th className="p-3 font-semibold">{tr('Keterangan', 'Notes')}</th>
+                  <th className="p-3 font-semibold text-right">{tr('Aksi', 'Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -206,7 +217,7 @@ export const OverheadInventoryPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setPreviewPhotoInv(inv)}
-                          title="Klik untuk memperbesar foto"
+                          title={tr('Klik untuk memperbesar foto', 'Click to enlarge photo')}
                           className="group relative w-10 h-10 rounded-lg overflow-hidden border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 shrink-0 block"
                         >
                           <img
@@ -222,8 +233,8 @@ export const OverheadInventoryPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setEditModal(inv)}
-                          title="Unggah foto aset"
-                          className="w-10 h-10 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-400 hover:border-[#E60012] hover:text-[#E60012] transition"
+                          title={tr('Unggah foto aset', 'Upload asset photo')}
+                          className="w-10 h-10 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-400 hover:border-theme-primary hover:text-theme-primary transition"
                         >
                           <ImageIcon className="w-4 h-4" />
                         </button>
@@ -233,7 +244,7 @@ export const OverheadInventoryPage: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="p-3 font-mono-num font-bold text-[#E60012]">{inv.partId}</td>
+                    <td className="p-3 font-mono-num font-bold text-theme-primary">{inv.partId}</td>
                     <td className="p-3 font-semibold">{inv.itemName}</td>
                     <td className="p-3 text-right font-mono-num font-bold">{inv.qty}</td>
                     <td className="p-3">{inv.uom}</td>
@@ -267,8 +278,8 @@ export const OverheadInventoryPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setPreviewPhotoInv(inv)}
-                            title="Lihat Foto Aset"
-                            className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-[#E60012]"
+                            title={tr('Lihat Foto Aset', 'View Asset Photo')}
+                            className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-theme-primary"
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
@@ -281,7 +292,7 @@ export const OverheadInventoryPage: React.FC = () => {
                             setMutType('IN');
                             setMutQty(1);
                           }}
-                          title="Riwayat & Mutasi In/Out"
+                          title={tr('Riwayat & Mutasi In/Out', 'In/Out Mutation & History')}
                           className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
                         >
                           <History className="w-3.5 h-3.5" />
@@ -290,7 +301,7 @@ export const OverheadInventoryPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setEditModal(inv)}
-                            title="Ubah Aset"
+                            title={tr('Ubah Aset', 'Edit Asset')}
                             className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -315,7 +326,9 @@ export const OverheadInventoryPage: React.FC = () => {
           >
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold">
-                {editModal.id ? `Ubah ${editModal.partId}` : 'Tambah Aset Inventaris Overhead'}
+                {editModal.id
+                  ? tr(`Ubah ${editModal.partId}`, `Edit ${editModal.partId}`)
+                  : tr('Tambah Aset Inventaris Overhead', 'Add Overhead Inventory Asset')}
               </h3>
               <button type="button" onClick={() => setEditModal(null)}>
                 <X className="w-5 h-5" />
@@ -323,7 +336,7 @@ export const OverheadInventoryPage: React.FC = () => {
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold mb-1">Kelompok Kode (Part_Id)</label>
+                <label className="block font-semibold mb-1">{tr('Kelompok Kode (Part_Id)', 'Code Group (Part_Id)')}</label>
                 <select
                   disabled={Boolean(editModal.id)}
                   value={editModal.prefix || 'MCH'}
@@ -335,11 +348,11 @@ export const OverheadInventoryPage: React.FC = () => {
                 >
                   <option value="MCH">MCH (Merchandise)</option>
                   <option value="ELC">ELC (Electronic)</option>
-                  <option value="ATK">ATK (Alat Tulis Kantor)</option>
+                  <option value="ATK">{tr('ATK (Alat Tulis Kantor)', 'ATK (Office Stationery)')}</option>
                 </select>
               </div>
               <div>
-                <label className="block font-semibold mb-1">Part_Id Otomatis</label>
+                <label className="block font-semibold mb-1">{tr('Part_Id Otomatis', 'Auto Part_Id')}</label>
                 <input
                   type="text"
                   value={editModal.partId || ''}
@@ -348,7 +361,7 @@ export const OverheadInventoryPage: React.FC = () => {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1">Nama Barang</label>
+                <label className="block font-semibold mb-1">{tr('Nama Barang', 'Item Name')}</label>
                 <input
                   type="text"
                   required
@@ -382,7 +395,7 @@ export const OverheadInventoryPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block font-semibold mb-1">Lokasi Simpan</label>
+                <label className="block font-semibold mb-1">{tr('Lokasi Simpan', 'Storage Location')}</label>
                 <select
                   value={editModal.location || ''}
                   onChange={(e) => setEditModal({ ...editModal, location: e.target.value })}
@@ -396,7 +409,7 @@ export const OverheadInventoryPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block font-semibold mb-1">Kondisi</label>
+                <label className="block font-semibold mb-1">{tr('Kondisi', 'Condition')}</label>
                 <select
                   value={editModal.condition || 'BAGUS'}
                   onChange={(e) =>
@@ -404,12 +417,12 @@ export const OverheadInventoryPage: React.FC = () => {
                   }
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 >
-                  <option value="BAGUS">Bagus</option>
-                  <option value="RUSAK">Rusak</option>
+                  <option value="BAGUS">{tr('Bagus', 'Good')}</option>
+                  <option value="RUSAK">{tr('Rusak', 'Damaged')}</option>
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1">Keterangan</label>
+                <label className="block font-semibold mb-1">{tr('Keterangan', 'Notes')}</label>
                 <input
                   type="text"
                   value={editModal.notes || ''}
@@ -418,12 +431,12 @@ export const OverheadInventoryPage: React.FC = () => {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1.5">Foto Aset (Opsional)</label>
+                <label className="block font-semibold mb-1.5">{tr('Foto Aset (Opsional)', 'Asset Photo (Optional)')}</label>
                 <div className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114]">
                   {editModal.photoUrl ? (
                     <img
                       src={editModal.photoUrl}
-                      alt="Pratinjau foto aset"
+                      alt={tr('Pratinjau foto aset', 'Asset photo preview')}
                       className="w-16 h-16 rounded-lg object-cover border border-neutral-200 dark:border-neutral-700 shrink-0"
                     />
                   ) : (
@@ -433,9 +446,9 @@ export const OverheadInventoryPage: React.FC = () => {
                   )}
                   <div className="flex-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] font-semibold cursor-pointer hover:border-[#E60012] transition">
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] font-semibold cursor-pointer hover:border-theme-primary transition">
                         <Upload className="w-3.5 h-3.5" />
-                        {editModal.photoUrl ? 'Ganti Foto' : 'Unggah Foto'}
+                        {editModal.photoUrl ? tr('Ganti Foto', 'Change Photo') : tr('Unggah Foto', 'Upload Photo')}
                         <input
                           type="file"
                           accept="image/*"
@@ -450,12 +463,15 @@ export const OverheadInventoryPage: React.FC = () => {
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 font-semibold hover:bg-red-50 dark:hover:bg-red-950/30"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          Hapus
+                          {tr('Hapus', 'Remove')}
                         </button>
                       )}
                     </div>
                     <p className="text-[11px] text-neutral-500">
-                      Foto otomatis dikompresi dan tersinkronisasi ke bucket Storage Supabase saat terhubung.
+                      {tr(
+                        'Foto otomatis dikompresi dan tersinkronisasi ke bucket Storage Supabase saat terhubung.',
+                        'Photos are automatically compressed and synced to the Supabase Storage bucket when connected.'
+                      )}
                     </p>
                   </div>
                 </div>
@@ -467,13 +483,13 @@ export const OverheadInventoryPage: React.FC = () => {
                 onClick={() => setEditModal(null)}
                 className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#E60012] text-white font-semibold"
+                className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white font-semibold"
               >
-                Simpan Aset
+                {tr('Simpan Aset', 'Save Asset')}
               </button>
             </div>
           </form>
@@ -492,7 +508,7 @@ export const OverheadInventoryPage: React.FC = () => {
           >
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800">
               <div>
-                <div className="text-[11px] font-mono-num font-bold text-[#E60012]">
+                <div className="text-[11px] font-mono-num font-bold text-theme-primary">
                   {previewPhotoInv.partId} · {previewPhotoInv.location}
                 </div>
                 <h3 className="text-sm font-bold">{previewPhotoInv.itemName}</h3>
@@ -514,9 +530,10 @@ export const OverheadInventoryPage: React.FC = () => {
             </div>
             <div className="px-5 py-3 flex items-center justify-between text-xs border-t border-neutral-200 dark:border-neutral-800">
               <span className="text-neutral-500">
-                QTY: <strong className="text-neutral-900 dark:text-white">{previewPhotoInv.qty} {previewPhotoInv.uom}</strong> · Kondisi:{' '}
+                QTY: <strong className="text-neutral-900 dark:text-white">{previewPhotoInv.qty} {previewPhotoInv.uom}</strong> ·{' '}
+                {tr('Kondisi', 'Condition')}:{' '}
                 <strong className={previewPhotoInv.condition === 'BAGUS' ? 'text-emerald-600' : 'text-red-600'}>
-                  {previewPhotoInv.condition}
+                  {previewPhotoInv.condition === 'BAGUS' ? tr('Bagus', 'Good') : tr('Rusak', 'Damaged')}
                 </strong>
               </span>
               <div className="flex items-center gap-2">
@@ -530,7 +547,7 @@ export const OverheadInventoryPage: React.FC = () => {
                     }}
                     className="px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 font-semibold"
                   >
-                    Ganti Foto
+                    {tr('Ganti Foto', 'Change Photo')}
                   </button>
                 )}
                 <button
@@ -538,7 +555,7 @@ export const OverheadInventoryPage: React.FC = () => {
                   onClick={() => setPreviewPhotoInv(null)}
                   className="px-3 py-1.5 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-black font-semibold"
                 >
-                  Tutup
+                  {tr('Tutup', 'Close')}
                 </button>
               </div>
             </div>
@@ -552,7 +569,7 @@ export const OverheadInventoryPage: React.FC = () => {
           <div className="w-full max-w-lg rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div>
-                <span className="font-mono-num font-bold text-[#E60012]">
+                <span className="font-mono-num font-bold text-theme-primary">
                   {mutationModal.partId}
                 </span>
                 <h3 className="text-base font-bold">{mutationModal.itemName}</h3>
@@ -567,16 +584,18 @@ export const OverheadInventoryPage: React.FC = () => {
                 onSubmit={handleMutationSubmit}
                 className="p-4 rounded-xl bg-neutral-50 dark:bg-[#0F1114] border border-neutral-200 dark:border-neutral-800 space-y-3"
               >
-                <div className="font-bold">Catat Mutasi In / Out / Update Kondisi</div>
+                <div className="font-bold">
+                  {tr('Catat Mutasi In / Out / Update Kondisi', 'Record In / Out Mutation / Condition Update')}
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   <select
                     value={mutType}
                     onChange={(e) => setMutType(e.target.value as typeof mutType)}
                     className="px-2.5 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F]"
                   >
-                    <option value="IN">Barang Masuk (+)</option>
-                    <option value="OUT">Barang Keluar (-)</option>
-                    <option value="KONDISI">Ubah Kondisi</option>
+                    <option value="IN">{tr('Barang Masuk (+)', 'Stock In (+)')}</option>
+                    <option value="OUT">{tr('Barang Keluar (-)', 'Stock Out (-)')}</option>
+                    <option value="KONDISI">{tr('Ubah Kondisi', 'Update Condition')}</option>
                   </select>
                   <input
                     type="number"
@@ -591,8 +610,8 @@ export const OverheadInventoryPage: React.FC = () => {
                     onChange={(e) => setMutCond(e.target.value as 'BAGUS' | 'RUSAK')}
                     className="px-2.5 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F]"
                   >
-                    <option value="BAGUS">Bagus</option>
-                    <option value="RUSAK">Rusak</option>
+                    <option value="BAGUS">{tr('Bagus', 'Good')}</option>
+                    <option value="RUSAK">{tr('Rusak', 'Damaged')}</option>
                   </select>
                 </div>
                 <div className="flex gap-2">
@@ -600,21 +619,21 @@ export const OverheadInventoryPage: React.FC = () => {
                     type="text"
                     value={mutNote}
                     onChange={(e) => setMutNote(e.target.value)}
-                    placeholder="Keterangan mutasi..."
+                    placeholder={tr('Keterangan mutasi...', 'Mutation notes...')}
                     className="flex-1 px-2.5 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F]"
                   />
                   <button
                     type="submit"
-                    className="px-3.5 py-1.5 rounded-lg bg-[#E60012] text-white font-semibold"
+                    className="px-3.5 py-1.5 rounded-lg bg-theme-primary bg-theme-primary-hover text-white font-semibold"
                   >
-                    Catat
+                    {tr('Catat', 'Record')}
                   </button>
                 </div>
               </form>
             )}
 
             <div className="space-y-2">
-              <div className="font-bold">Riwayat Mutasi</div>
+              <div className="font-bold">{tr('Riwayat Mutasi', 'Mutation History')}</div>
               {mutationModal.mutations.map((m) => (
                 <div
                   key={m.id}
@@ -625,7 +644,7 @@ export const OverheadInventoryPage: React.FC = () => {
                       {m.type} {m.qty > 0 ? `(${m.qty})` : ''} · {m.note}
                     </div>
                     <div className="text-[11px] text-neutral-500">
-                      {formatDateIndo(m.date)} · {m.byName}
+                      {formatDateIndo(m.date, language)} · {m.byName}
                     </div>
                   </div>
                 </div>

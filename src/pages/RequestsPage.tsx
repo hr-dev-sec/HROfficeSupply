@@ -22,6 +22,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
 import { useToast } from '../context/ToastContext';
 import { HR_SECTIONS, type HrEmployee, type HrSection, type SupplyType } from '../types';
@@ -39,6 +40,7 @@ interface WalkinLine {
 
 export const RequestsPage: React.FC = () => {
   const { user, canEditOperational, canApproveSM } = useAuth();
+  const { language, tr } = useLanguage();
   const {
     store,
     upsertEmployee,
@@ -142,9 +144,9 @@ export const RequestsPage: React.FC = () => {
     const url = `${window.location.origin}/pengambilan`;
     try {
       await navigator.clipboard.writeText(url);
-      toast('Tautan Form Pengambilan disalin', 'success', url);
+      toast(tr('Tautan Form Pengambilan disalin', 'Supply Request Form link copied'), 'success', url);
     } catch {
-      toast('Tautan Form Pengambilan', 'info', url);
+      toast(tr('Tautan Form Pengambilan', 'Supply Request Form Link'), 'info', url);
     }
   };
 
@@ -152,10 +154,16 @@ export const RequestsPage: React.FC = () => {
     if (!user) return;
     const res = processItemRequest(reqId, true, user);
     if (!res.ok) {
-      toast('Gagal menyetujui pengambilan', 'error', res.error);
+      toast(tr('Gagal menyetujui pengambilan', 'Failed to approve request'), 'error', res.error);
       return;
     }
-    toast('Permintaan disetujui & stok otomatis tercatat Pakai', 'success');
+    toast(
+      tr(
+        'Permintaan disetujui & stok otomatis tercatat Pakai',
+        'Request approved & stock automatically recorded as Usage'
+      ),
+      'success'
+    );
   };
 
   const handleConfirmReject = (e: React.FormEvent) => {
@@ -163,12 +171,12 @@ export const RequestsPage: React.FC = () => {
     if (!user || !rejectTargetId) return;
     const res = processItemRequest(rejectTargetId, false, user, rejectReason);
     if (!res.ok) {
-      toast('Gagal menolak permintaan', 'error', res.error);
+      toast(tr('Gagal menolak permintaan', 'Failed to reject request'), 'error', res.error);
       return;
     }
     setRejectTargetId(null);
     setRejectReason('');
-    toast('Permintaan ditolak', 'warning');
+    toast(tr('Permintaan ditolak', 'Request rejected'), 'warning');
   };
 
   // Walk-in handlers
@@ -188,7 +196,7 @@ export const RequestsPage: React.FC = () => {
     const item = store.items.find((i) => i.id === walkinItemId);
     if (!item) return;
     if (item.currentStock <= 0) {
-      toast('Stok barang habis', 'warning');
+      toast(tr('Stok barang habis', 'Item is out of stock'), 'warning');
       return;
     }
     setWalkinLines((prev) => {
@@ -219,7 +227,7 @@ export const RequestsPage: React.FC = () => {
     if (!user) return;
     const emp = activeEmployees.find((em) => em.id === walkinEmpId);
     if (!emp) {
-      toast('Pilih karyawan Dept. HR terlebih dahulu', 'warning');
+      toast(tr('Pilih karyawan Dept. HR terlebih dahulu', 'Please select an HR Dept. employee first'), 'warning');
       return;
     }
     let finalLines = [...walkinLines];
@@ -238,7 +246,7 @@ export const RequestsPage: React.FC = () => {
       }
     }
     if (finalLines.length === 0) {
-      toast('Tambahkan minimal 1 barang', 'warning');
+      toast(tr('Tambahkan minimal 1 barang', 'Add at least 1 item'), 'warning');
       return;
     }
 
@@ -251,7 +259,7 @@ export const RequestsPage: React.FC = () => {
         requestDate: new Date().toISOString().slice(0, 10),
         source: 'ADMIN',
         items: finalLines,
-        note: walkinNote.trim() || `Pengambilan langsung ${emp.section}`,
+        note: walkinNote.trim() || tr(`Pengambilan langsung ${emp.section}`, `Direct pickup ${emp.section}`),
       },
       user
     );
@@ -259,12 +267,16 @@ export const RequestsPage: React.FC = () => {
     if (walkinAutoApprove) {
       const res = processItemRequest(created.id, true, user);
       if (!res.ok) {
-        toast('Permintaan tersimpan, tetapi gagal auto-approve', 'warning', res.error);
+        toast(
+          tr('Permintaan tersimpan, tetapi gagal auto-approve', 'Request saved, but auto-approve failed'),
+          'warning',
+          res.error
+        );
       } else {
-        toast('Pengambilan dicatat & langsung disetujui', 'success');
+        toast(tr('Pengambilan dicatat & langsung disetujui', 'Pickup recorded & approved immediately'), 'success');
       }
     } else {
-      toast('Permintaan pengambilan berhasil ditambahkan ke antrean', 'success');
+      toast(tr('Permintaan pengambilan berhasil ditambahkan ke antrean', 'Supply request added to queue'), 'success');
     }
     setShowWalkinModal(false);
   };
@@ -275,10 +287,15 @@ export const RequestsPage: React.FC = () => {
     if (!user || !empModal) return;
     const res = upsertEmployee(empModal, user);
     if (!res.ok) {
-      toast('Gagal menyimpan data karyawan', 'error', res.error);
+      toast(tr('Gagal menyimpan data karyawan', 'Failed to save employee record'), 'error', res.error);
       return;
     }
-    toast(empModal.id ? 'Data karyawan diperbarui' : 'Karyawan baru ditambahkan', 'success');
+    toast(
+      empModal.id
+        ? tr('Data karyawan diperbarui', 'Employee record updated')
+        : tr('Karyawan baru ditambahkan', 'New employee added'),
+      'success'
+    );
     setEmpModal(null);
   };
 
@@ -302,7 +319,7 @@ export const RequestsPage: React.FC = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Karyawan HR');
     XLSX.writeFile(wb, 'Template_Database_Karyawan_HR.xlsx');
-    toast('Template Excel Karyawan HR berhasil diunduh', 'success');
+    toast(tr('Template Excel Karyawan HR berhasil diunduh', 'HR Employee Excel template downloaded'), 'success');
   };
 
   const handleImportEmployeesFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -337,18 +354,32 @@ export const RequestsPage: React.FC = () => {
       }
 
       if (parsed.length === 0) {
-        toast('Tidak ada baris valid', 'warning', 'Pastikan file memiliki kolom Nama Lengkap, NIK, Seksi, dan Jabatan.');
+        toast(
+          tr('Tidak ada baris valid', 'No valid rows found'),
+          'warning',
+          tr(
+            'Pastikan file memiliki kolom Nama Lengkap, NIK, Seksi, dan Jabatan.',
+            'Ensure the file contains Full Name, NIK, Section, and Position columns.'
+          )
+        );
         return;
       }
 
       const res = importEmployeesBatch(parsed, user);
       toast(
-        'Import Database Karyawan HR selesai',
+        tr('Import Database Karyawan HR selesai', 'HR Employee Database import completed'),
         'success',
-        `${res.added} karyawan baru ditambahkan, ${res.updated} data diperbarui.`
+        tr(
+          `${res.added} karyawan baru ditambahkan, ${res.updated} data diperbarui.`,
+          `${res.added} new employees added, ${res.updated} records updated.`
+        )
       );
     } catch {
-      toast('Gagal membaca file Excel/CSV', 'error', 'Pastikan format file .xlsx, .xls, atau .csv valid.');
+      toast(
+        tr('Gagal membaca file Excel/CSV', 'Failed to read Excel/CSV file'),
+        'error',
+        tr('Pastikan format file .xlsx, .xls, atau .csv valid.', 'Ensure the .xlsx, .xls, or .csv file is valid.')
+      );
     }
   };
 
@@ -358,10 +389,13 @@ export const RequestsPage: React.FC = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-extrabold font-display">
-            Pengambilan Barang &amp; Approval Karyawan HR
+            {tr('Pengambilan Barang & Approval Karyawan HR', 'HR Employee Supply Pickup & Approvals')}
           </h2>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Kelola persetujuan pengambilan Office Supplies &amp; Overhead Goods untuk Seksi HR Development dan Administration &amp; Operation. Stok otomatis terpotong setelah disetujui.
+            {tr(
+              'Kelola persetujuan pengambilan Office Supplies & Overhead Goods untuk Seksi HR Development dan Administration & Operation. Stok otomatis terpotong setelah disetujui.',
+              'Manage Office Supplies & Overhead Goods pickup approvals for HR Development and Administration & Operation sections. Stock is deducted automatically upon approval.'
+            )}
           </p>
         </div>
 
@@ -369,18 +403,18 @@ export const RequestsPage: React.FC = () => {
           <button
             type="button"
             onClick={handleCopyPortalLink}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-[#E60012] text-xs font-semibold transition whitespace-nowrap cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary text-xs font-semibold transition whitespace-nowrap cursor-pointer"
           >
             <Copy className="w-3.5 h-3.5" />
-            Salin Link Form Depan
+            {tr('Salin Link Form Depan', 'Copy Public Form Link')}
           </button>
           <button
             type="button"
             onClick={() => navigate('/pengambilan')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-[#E60012] text-xs font-semibold transition whitespace-nowrap cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary text-xs font-semibold transition whitespace-nowrap cursor-pointer"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            Buka Form Karyawan
+            {tr('Buka Form Karyawan', 'Open Employee Form')}
           </button>
           <button
             type="button"
@@ -388,7 +422,7 @@ export const RequestsPage: React.FC = () => {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#C9A24B]/50 bg-[#C9A24B]/10 hover:bg-[#C9A24B]/20 text-xs font-semibold transition whitespace-nowrap cursor-pointer"
           >
             <CalendarRange className="w-3.5 h-3.5 text-[#C9A24B]" />
-            Rolling Forecast GA
+            {tr('Rolling Forecast GA', 'GA Rolling Forecast')}
           </button>
         </div>
       </div>
@@ -396,28 +430,40 @@ export const RequestsPage: React.FC = () => {
       {/* KPI Strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
-          <div className="text-[11px] font-semibold text-neutral-500">Menunggu Approval</div>
+          <div className="text-[11px] font-semibold text-neutral-500">
+            {tr('Menunggu Approval', 'Pending Approval')}
+          </div>
           <div className="text-2xl font-extrabold font-mono-num mt-1 text-amber-600">
             {stats.menunggu}
           </div>
-          <div className="text-[11px] text-neutral-500 mt-0.5">Perlu persetujuan PIC / Admin</div>
+          <div className="text-[11px] text-neutral-500 mt-0.5">
+            {tr('Perlu persetujuan PIC / Admin', 'Needs PIC / Admin approval')}
+          </div>
         </div>
         <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
-          <div className="text-[11px] font-semibold text-neutral-500">Disetujui &amp; Tercatat</div>
+          <div className="text-[11px] font-semibold text-neutral-500">
+            {tr('Disetujui & Tercatat', 'Approved & Recorded')}
+          </div>
           <div className="text-2xl font-extrabold font-mono-num mt-1 text-emerald-600">
             {stats.disetujui}
           </div>
-          <div className="text-[11px] text-neutral-500 mt-0.5">Otomatis masuk transaksi Pakai</div>
+          <div className="text-[11px] text-neutral-500 mt-0.5">
+            {tr('Otomatis masuk transaksi Pakai', 'Auto-posted to Usage ledger')}
+          </div>
         </div>
         <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
-          <div className="text-[11px] font-semibold text-neutral-500">Ditolak</div>
+          <div className="text-[11px] font-semibold text-neutral-500">{tr('Ditolak', 'Rejected')}</div>
           <div className="text-2xl font-extrabold font-mono-num mt-1 text-red-600">
             {stats.ditolak}
           </div>
-          <div className="text-[11px] text-neutral-500 mt-0.5">Stok tidak berkurang</div>
+          <div className="text-[11px] text-neutral-500 mt-0.5">
+            {tr('Stok tidak berkurang', 'Stock remains unchanged')}
+          </div>
         </div>
         <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
-          <div className="text-[11px] font-semibold text-neutral-500">Karyawan HR Terdaftar</div>
+          <div className="text-[11px] font-semibold text-neutral-500">
+            {tr('Karyawan HR Terdaftar', 'Registered HR Employees')}
+          </div>
           <div className="text-2xl font-extrabold font-mono-num mt-1">
             {activeEmployees.length}
           </div>
@@ -440,7 +486,7 @@ export const RequestsPage: React.FC = () => {
             }`}
           >
             <ClipboardCheck className="w-3.5 h-3.5" />
-            Antrean Approval ({stats.menunggu})
+            {tr('Antrean Approval', 'Approval Queue')} ({stats.menunggu})
           </button>
           <button
             type="button"
@@ -452,7 +498,7 @@ export const RequestsPage: React.FC = () => {
             }`}
           >
             <Users className="w-3.5 h-3.5" />
-            Database Karyawan HR ({employees.length})
+            {tr('Database Karyawan HR', 'HR Employee Database')} ({employees.length})
           </button>
         </div>
 
@@ -460,10 +506,10 @@ export const RequestsPage: React.FC = () => {
           <button
             type="button"
             onClick={openWalkinModal}
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold transition whitespace-nowrap cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold transition whitespace-nowrap cursor-pointer"
           >
             <Plus className="w-4 h-4" />
-            Catat Pengambilan Langsung
+            {tr('Catat Pengambilan Langsung', 'Record Direct Pickup')}
           </button>
         )}
 
@@ -479,18 +525,18 @@ export const RequestsPage: React.FC = () => {
             <button
               type="button"
               onClick={handleDownloadEmployeeTemplate}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-[#E60012] text-xs font-semibold transition whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary text-xs font-semibold transition whitespace-nowrap cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
-              Template Excel
+              {tr('Template Excel', 'Excel Template')}
             </button>
             <button
               type="button"
               onClick={() => importInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-[#E60012] text-xs font-semibold transition whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary text-xs font-semibold transition whitespace-nowrap cursor-pointer"
             >
               <Upload className="w-3.5 h-3.5" />
-              Import Excel / CSV
+              {tr('Import Excel / CSV', 'Import Excel / CSV')}
             </button>
             <button
               type="button"
@@ -503,10 +549,10 @@ export const RequestsPage: React.FC = () => {
                   active: true,
                 })
               }
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold transition whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold transition whitespace-nowrap cursor-pointer"
             >
               <UserPlus className="w-3.5 h-3.5" />
-              Tambah Karyawan
+              {tr('Tambah Karyawan', 'Add Employee')}
             </button>
           </div>
         )}
@@ -523,7 +569,10 @@ export const RequestsPage: React.FC = () => {
                 type="text"
                 value={reqSearch}
                 onChange={(e) => setReqSearch(e.target.value)}
-                placeholder="Cari nama karyawan, NIK, barang, atau keperluan..."
+                placeholder={tr(
+                  'Cari nama karyawan, NIK, barang, atau keperluan...',
+                  'Search employee name, NIK, item, or purpose...'
+                )}
                 className="w-full pl-8 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114]"
               />
             </div>
@@ -531,10 +580,10 @@ export const RequestsPage: React.FC = () => {
             <div className="inline-flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800">
               {(
                 [
-                  { id: 'ALL', label: 'Semua' },
-                  { id: 'MENUNGGU', label: 'Menunggu' },
-                  { id: 'DISETUJUI', label: 'Disetujui' },
-                  { id: 'DITOLAK', label: 'Ditolak' },
+                  { id: 'ALL', label: tr('Semua', 'All') },
+                  { id: 'MENUNGGU', label: tr('Menunggu', 'Pending') },
+                  { id: 'DISETUJUI', label: tr('Disetujui', 'Approved') },
+                  { id: 'DITOLAK', label: tr('Ditolak', 'Rejected') },
                 ] as const
               ).map((st) => (
                 <button
@@ -557,7 +606,7 @@ export const RequestsPage: React.FC = () => {
               onChange={(e) => setSectionFilter(e.target.value as 'ALL' | HrSection)}
               className="px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] font-semibold"
             >
-              <option value="ALL">Semua Seksi HR</option>
+              <option value="ALL">{tr('Semua Seksi HR', 'All HR Sections')}</option>
               {HR_SECTIONS.map((sec) => (
                 <option key={sec} value={sec}>
                   {sec}
@@ -569,7 +618,10 @@ export const RequestsPage: React.FC = () => {
           {/* Request List */}
           {filteredRequests.length === 0 ? (
             <div className="p-10 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] text-center text-xs text-neutral-500">
-              Tidak ada permintaan pengambilan barang yang sesuai dengan filter.
+              {tr(
+                'Tidak ada permintaan pengambilan barang yang sesuai dengan filter.',
+                'No supply pickup requests match the current filter.'
+              )}
             </div>
           ) : (
             <div className="space-y-3">
@@ -598,7 +650,9 @@ export const RequestsPage: React.FC = () => {
                         <span className="text-neutral-500">· {req.requesterSection}</span>
                         <span className="text-neutral-400">·</span>
                         <span className="text-neutral-500">
-                          {req.source === 'ADMIN' ? 'Input Admin' : 'Form Depan Karyawan'}
+                          {req.source === 'ADMIN'
+                            ? tr('Input Admin', 'Admin Entry')
+                            : tr('Form Depan Karyawan', 'Employee Public Form')}
                         </span>
                       </div>
 
@@ -622,7 +676,7 @@ export const RequestsPage: React.FC = () => {
                               </div>
                               <div className="flex items-center gap-3 font-mono-num">
                                 <span className="font-bold text-neutral-900 dark:text-white">
-                                  Diminta: {it.qty} {it.uom}
+                                  {tr('Diminta', 'Requested')}: {it.qty} {it.uom}
                                 </span>
                                 {req.status === 'MENUNGGU' && live && (
                                   <span
@@ -632,7 +686,7 @@ export const RequestsPage: React.FC = () => {
                                         : 'text-neutral-500'
                                     }
                                   >
-                                    Stok saat ini: {live.currentStock} {live.uom}
+                                    {tr('Stok saat ini', 'Current stock')}: {live.currentStock} {live.uom}
                                   </span>
                                 )}
                               </div>
@@ -642,14 +696,15 @@ export const RequestsPage: React.FC = () => {
                       </div>
 
                       <div className="text-[11px] text-neutral-500 flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="font-mono-num">{formatDateIndo(req.requestDate)}</span>
+                        <span className="font-mono-num">{formatDateIndo(req.requestDate, language)}</span>
                         <span>·</span>
-                        <span>Keperluan: {req.note}</span>
+                        <span>{tr('Keperluan', 'Purpose')}: {req.note}</span>
                         {req.processedByName && req.processedAt && (
                           <>
                             <span>·</span>
                             <span>
-                              Diproses {req.processedByName} ({formatDateTimeIndo(req.processedAt)})
+                              {tr('Diproses', 'Processed by')} {req.processedByName} (
+                              {formatDateTimeIndo(req.processedAt, language)})
                             </span>
                           </>
                         )}
@@ -657,14 +712,17 @@ export const RequestsPage: React.FC = () => {
 
                       {req.status === 'DITOLAK' && req.rejectionNote && (
                         <div className="text-[11px] text-red-600 font-medium">
-                          Alasan Penolakan: {req.rejectionNote}
+                          {tr('Alasan Penolakan', 'Rejection Reason')}: {req.rejectionNote}
                         </div>
                       )}
 
                       {stockIssues.length > 0 && (
                         <div className="inline-flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 font-semibold">
                           <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                          Stok saat ini tidak mencukupi untuk {stockIssues.length} item di atas.
+                          {tr(
+                            `Stok saat ini tidak mencukupi untuk ${stockIssues.length} item di atas.`,
+                            `Current stock is insufficient for ${stockIssues.length} item(s) above.`
+                          )}
                         </div>
                       )}
                     </div>
@@ -679,7 +737,7 @@ export const RequestsPage: React.FC = () => {
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-45 disabled:cursor-not-allowed text-white font-semibold transition cursor-pointer whitespace-nowrap"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            Setujui &amp; Catat Pakai
+                            {tr('Setujui & Catat Pakai', 'Approve & Record Usage')}
                           </button>
                           <button
                             type="button"
@@ -690,7 +748,7 @@ export const RequestsPage: React.FC = () => {
                             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-red-300 dark:border-red-800 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 font-semibold transition cursor-pointer whitespace-nowrap"
                           >
                             <XCircle className="w-3.5 h-3.5" />
-                            Tolak
+                            {tr('Tolak', 'Reject')}
                           </button>
                         </>
                       ) : (
@@ -707,10 +765,10 @@ export const RequestsPage: React.FC = () => {
                           {req.status === 'DISETUJUI' && <CheckCircle2 className="w-3.5 h-3.5" />}
                           {req.status === 'DITOLAK' && <XCircle className="w-3.5 h-3.5" />}
                           {req.status === 'MENUNGGU'
-                            ? 'Menunggu Approval'
+                            ? tr('Menunggu Approval', 'Pending Approval')
                             : req.status === 'DISETUJUI'
-                            ? 'Disetujui'
-                            : 'Ditolak'}
+                            ? tr('Disetujui', 'Approved')
+                            : tr('Ditolak', 'Rejected')}
                         </span>
                       )}
                     </div>
@@ -727,9 +785,14 @@ export const RequestsPage: React.FC = () => {
         <div className="p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-bold">Database Karyawan Departemen Human Resources</h3>
+              <h3 className="text-sm font-bold">
+                {tr('Database Karyawan Departemen Human Resources', 'Human Resources Department Employee Database')}
+              </h3>
               <p className="text-[11px] text-neutral-500 mt-0.5">
-                Daftar karyawan aktif di bawah ini otomatis muncul pada <strong>Form Pengambilan Karyawan</strong> di halaman depan sebelum login. Jika kolom NIK diisi, karyawan wajib memverifikasi NIK-nya saat mengambil barang.
+                {tr(
+                  'Daftar karyawan aktif di bawah ini otomatis muncul pada Form Pengambilan Karyawan di halaman depan sebelum login. Jika kolom NIK diisi, karyawan wajib memverifikasi NIK-nya saat mengambil barang.',
+                  'Active employees listed below automatically appear on the public Employee Supply Pickup Form before login. When NIK is filled, employees must verify their NIK when picking up supplies.'
+                )}
               </p>
             </div>
           </div>
@@ -741,7 +804,10 @@ export const RequestsPage: React.FC = () => {
                 type="text"
                 value={empSearch}
                 onChange={(e) => setEmpSearch(e.target.value)}
-                placeholder="Cari nama karyawan, NIK, atau jabatan..."
+                placeholder={tr(
+                  'Cari nama karyawan, NIK, atau jabatan...',
+                  'Search employee name, NIK, or position...'
+                )}
                 className="w-full pl-8 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114]"
               />
             </div>
@@ -758,7 +824,7 @@ export const RequestsPage: React.FC = () => {
                       : 'text-neutral-500'
                   }`}
                 >
-                  {sec === 'ALL' ? 'Semua Seksi' : sec}
+                  {sec === 'ALL' ? tr('Semua Seksi', 'All Sections') : sec}
                 </button>
               ))}
             </div>
@@ -769,18 +835,18 @@ export const RequestsPage: React.FC = () => {
               <thead>
                 <tr className="border-b border-neutral-200 dark:border-neutral-800 text-left text-neutral-500">
                   <th className="py-2.5 pr-3">NIK</th>
-                  <th className="py-2.5 px-3">Nama Lengkap</th>
-                  <th className="py-2.5 px-3">Seksi</th>
-                  <th className="py-2.5 px-3">Jabatan</th>
+                  <th className="py-2.5 px-3">{tr('Nama Lengkap', 'Full Name')}</th>
+                  <th className="py-2.5 px-3">{tr('Seksi', 'Section')}</th>
+                  <th className="py-2.5 px-3">{tr('Jabatan', 'Position')}</th>
                   <th className="py-2.5 px-3 text-center">Status</th>
-                  {canManage && <th className="py-2.5 pl-3 text-right">Aksi</th>}
+                  {canManage && <th className="py-2.5 pl-3 text-right">{tr('Aksi', 'Actions')}</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
                 {filteredEmployees.length === 0 ? (
                   <tr>
                     <td colSpan={canManage ? 6 : 5} className="py-8 text-center text-neutral-500">
-                      Belum ada data karyawan yang sesuai filter.
+                      {tr('Belum ada data karyawan yang sesuai filter.', 'No employees match the current filter.')}
                     </td>
                   </tr>
                 ) : (
@@ -808,7 +874,11 @@ export const RequestsPage: React.FC = () => {
                             onClick={() => {
                               upsertEmployee({ ...emp, active: !emp.active }, user);
                               toast(
-                                `${emp.name} ${!emp.active ? 'diaktifkan' : 'dinonaktifkan'}`,
+                                `${emp.name} ${
+                                  !emp.active
+                                    ? tr('diaktifkan', 'activated')
+                                    : tr('dinonaktifkan', 'deactivated')
+                                }`,
                                 'success'
                               );
                             }}
@@ -816,11 +886,11 @@ export const RequestsPage: React.FC = () => {
                               emp.active ? 'text-emerald-600' : 'text-red-600'
                             }`}
                           >
-                            {emp.active ? 'Aktif' : 'Nonaktif'}
+                            {emp.active ? tr('Aktif', 'Active') : tr('Nonaktif', 'Inactive')}
                           </button>
                         ) : (
                           <span className={emp.active ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
-                            {emp.active ? 'Aktif' : 'Nonaktif'}
+                            {emp.active ? tr('Aktif', 'Active') : tr('Nonaktif', 'Inactive')}
                           </span>
                         )}
                       </td>
@@ -839,7 +909,7 @@ export const RequestsPage: React.FC = () => {
                                   active: emp.active,
                                 })
                               }
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-[#E60012] hover:text-[#E60012] font-semibold transition cursor-pointer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-theme-primary hover:text-theme-primary font-semibold transition cursor-pointer"
                             >
                               <Pencil className="w-3 h-3" />
                               Edit
@@ -848,10 +918,16 @@ export const RequestsPage: React.FC = () => {
                               type="button"
                               onClick={() => {
                                 deleteEmployee(emp.id, user);
-                                toast(`${emp.name} dihapus dari database karyawan HR`, 'info');
+                                toast(
+                                  tr(
+                                    `${emp.name} dihapus dari database karyawan HR`,
+                                    `${emp.name} removed from HR employee database`
+                                  ),
+                                  'info'
+                                );
                               }}
                               className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:border-red-400 hover:text-red-600 transition cursor-pointer"
-                              title="Hapus karyawan"
+                              title={tr('Hapus karyawan', 'Delete employee')}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -875,7 +951,9 @@ export const RequestsPage: React.FC = () => {
             className="w-full max-w-md rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4 text-xs shadow-2xl"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold">Tolak Permintaan Pengambilan</h3>
+              <h3 className="text-sm font-bold">
+                {tr('Tolak Permintaan Pengambilan', 'Reject Supply Request')}
+              </h3>
               <button
                 type="button"
                 onClick={() => setRejectTargetId(null)}
@@ -885,12 +963,17 @@ export const RequestsPage: React.FC = () => {
               </button>
             </div>
             <div>
-              <label className="block font-semibold mb-1.5">Alasan Penolakan (opsional)</label>
+              <label className="block font-semibold mb-1.5">
+                {tr('Alasan Penolakan (opsional)', 'Rejection Reason (optional)')}
+              </label>
               <textarea
                 rows={3}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Contoh: Stok sedang dialokasikan untuk jadwal training minggu ini..."
+                placeholder={tr(
+                  'Contoh: Stok sedang dialokasikan untuk jadwal training minggu ini...',
+                  'Example: Stock is reserved for this week’s training schedule...'
+                )}
                 className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114]"
               />
             </div>
@@ -900,13 +983,13 @@ export const RequestsPage: React.FC = () => {
                 onClick={() => setRejectTargetId(null)}
                 className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold cursor-pointer"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="submit"
                 className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold cursor-pointer"
               >
-                Konfirmasi Tolak
+                {tr('Konfirmasi Tolak', 'Confirm Reject')}
               </button>
             </div>
           </form>
@@ -922,9 +1005,14 @@ export const RequestsPage: React.FC = () => {
           >
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold">Catat Pengambilan Barang Karyawan HR</h3>
+                <h3 className="text-base font-bold">
+                  {tr('Catat Pengambilan Barang Karyawan HR', 'Record HR Employee Supply Pickup')}
+                </h3>
                 <p className="text-[11px] text-neutral-500">
-                  Input pengambilan langsung oleh PIC / Admin atas nama karyawan Dept. HR.
+                  {tr(
+                    'Input pengambilan langsung oleh PIC / Admin atas nama karyawan Dept. HR.',
+                    'Direct pickup entry by PIC / Admin on behalf of an HR Dept. employee.'
+                  )}
                 </p>
               </div>
               <button
@@ -937,14 +1025,16 @@ export const RequestsPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block font-semibold mb-1">Pilih Karyawan Dept. HR *</label>
+              <label className="block font-semibold mb-1">
+                {tr('Pilih Karyawan Dept. HR *', 'Select HR Dept. Employee *')}
+              </label>
               <select
                 required
                 value={walkinEmpId}
                 onChange={(e) => setWalkinEmpId(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
               >
-                <option value="">-- Pilih Karyawan --</option>
+                <option value="">{tr('-- Pilih Karyawan --', '-- Select Employee --')}</option>
                 {activeEmployees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name} {emp.nik ? `(${emp.nik})` : ''} — {emp.section}
@@ -954,7 +1044,9 @@ export const RequestsPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="block font-semibold">Tambah Barang (Office Supplies / Overhead Goods)</label>
+              <label className="block font-semibold">
+                {tr('Tambah Barang (Office Supplies / Overhead Goods)', 'Add Item (Office Supplies / Overhead Goods)')}
+              </label>
               <div className="flex gap-2">
                 <select
                   value={walkinItemId}
@@ -965,7 +1057,7 @@ export const RequestsPage: React.FC = () => {
                     .filter((i) => !i.archived && i.currentStock > 0)
                     .map((it) => (
                       <option key={it.id} value={it.id}>
-                        {it.itemName} (Stok: {it.currentStock} {it.uom})
+                        {it.itemName} ({tr('Stok', 'Stock')}: {it.currentStock} {it.uom})
                       </option>
                     ))}
                 </select>
@@ -979,9 +1071,9 @@ export const RequestsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAddWalkinLine}
-                  className="px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-[#E60012] font-semibold shrink-0 cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary font-semibold shrink-0 cursor-pointer"
                 >
-                  + Tambah
+                  + {tr('Tambah', 'Add')}
                 </button>
               </div>
 
@@ -1024,12 +1116,12 @@ export const RequestsPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block font-semibold mb-1">Keperluan</label>
+              <label className="block font-semibold mb-1">{tr('Keperluan', 'Purpose')}</label>
               <input
                 type="text"
                 value={walkinNote}
                 onChange={(e) => setWalkinNote(e.target.value)}
-                placeholder="Contoh: Kebutuhan operasional HR"
+                placeholder={tr('Contoh: Kebutuhan operasional HR', 'Example: HR operational needs')}
                 className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
               />
             </div>
@@ -1039,10 +1131,13 @@ export const RequestsPage: React.FC = () => {
                 type="checkbox"
                 checked={walkinAutoApprove}
                 onChange={(e) => setWalkinAutoApprove(e.target.checked)}
-                className="rounded accent-[#E60012]"
+                className="rounded accent-current text-theme-primary"
               />
               <span className="font-medium">
-                Langsung setujui &amp; potong stok (catat transaksi Pakai sekarang)
+                {tr(
+                  'Langsung setujui & potong stok (catat transaksi Pakai sekarang)',
+                  'Approve immediately & deduct stock (record Usage transaction now)'
+                )}
               </span>
             </label>
 
@@ -1052,13 +1147,13 @@ export const RequestsPage: React.FC = () => {
                 onClick={() => setShowWalkinModal(false)}
                 className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold cursor-pointer"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white font-semibold cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white font-semibold cursor-pointer"
               >
-                Simpan Pengambilan
+                {tr('Simpan Pengambilan', 'Save Pickup')}
               </button>
             </div>
           </form>
@@ -1074,7 +1169,9 @@ export const RequestsPage: React.FC = () => {
           >
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold">
-                {empModal.id ? 'Edit Data Karyawan HR' : 'Tambah Karyawan Dept. HR'}
+                {empModal.id
+                  ? tr('Edit Data Karyawan HR', 'Edit HR Employee Record')
+                  : tr('Tambah Karyawan Dept. HR', 'Add HR Dept. Employee')}
               </h3>
               <button
                 type="button"
@@ -1087,32 +1184,37 @@ export const RequestsPage: React.FC = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block font-semibold mb-1">Nama Lengkap *</label>
+                <label className="block font-semibold mb-1">{tr('Nama Lengkap *', 'Full Name *')}</label>
                 <input
                   type="text"
                   required
                   value={empModal.name}
                   onChange={(e) => setEmpModal({ ...empModal, name: e.target.value })}
-                  placeholder="Contoh: Rina Kusuma Dewi"
+                  placeholder={tr('Contoh: Rina Kusuma Dewi', 'Example: Rina Kusuma Dewi')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
               </div>
 
               <div>
                 <label className="block font-semibold mb-1">
-                  NIK Karyawan <span className="font-normal text-neutral-400">(untuk verifikasi form depan)</span>
+                  {tr('NIK Karyawan', 'Employee NIK')}{' '}
+                  <span className="font-normal text-neutral-400">
+                    {tr('(untuk verifikasi form depan)', '(for public form verification)')}
+                  </span>
                 </label>
                 <input
                   type="text"
                   value={empModal.nik}
                   onChange={(e) => setEmpModal({ ...empModal, nik: e.target.value })}
-                  placeholder="Contoh: HR-007 atau 20240123"
+                  placeholder={tr('Contoh: HR-007 atau 20240123', 'Example: HR-007 or 20240123')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114] font-mono-num uppercase"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Seksi Departemen HR *</label>
+                <label className="block font-semibold mb-1">
+                  {tr('Seksi Departemen HR *', 'HR Department Section *')}
+                </label>
                 <select
                   value={empModal.section}
                   onChange={(e) => setEmpModal({ ...empModal, section: e.target.value as HrSection })}
@@ -1127,12 +1229,12 @@ export const RequestsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Jabatan / Posisi</label>
+                <label className="block font-semibold mb-1">{tr('Jabatan / Posisi', 'Job Title / Position')}</label>
                 <input
                   type="text"
                   value={empModal.jabatan}
                   onChange={(e) => setEmpModal({ ...empModal, jabatan: e.target.value })}
-                  placeholder="Contoh: Staff HR Development"
+                  placeholder={tr('Contoh: Staff HR Development', 'Example: Staff HR Development')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
               </div>
@@ -1142,10 +1244,13 @@ export const RequestsPage: React.FC = () => {
                   type="checkbox"
                   checked={empModal.active}
                   onChange={(e) => setEmpModal({ ...empModal, active: e.target.checked })}
-                  className="rounded accent-[#E60012]"
+                  className="rounded accent-current text-theme-primary"
                 />
                 <span className="font-medium">
-                  Aktif (tampil di pilihan Form Pengambilan Karyawan)
+                  {tr(
+                    'Aktif (tampil di pilihan Form Pengambilan Karyawan)',
+                    'Active (shown in Employee Supply Request Form options)'
+                  )}
                 </span>
               </label>
             </div>
@@ -1156,13 +1261,13 @@ export const RequestsPage: React.FC = () => {
                 onClick={() => setEmpModal(null)}
                 className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold cursor-pointer"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white font-semibold cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white font-semibold cursor-pointer"
               >
-                Simpan Data
+                {tr('Simpan Data', 'Save Record')}
               </button>
             </div>
           </form>

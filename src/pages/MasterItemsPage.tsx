@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { EmptyState } from '../components/common/EmptyState';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
 import { useToast } from '../context/ToastContext';
 import type { SupplyItem, SupplyType } from '../types';
@@ -31,6 +32,7 @@ import { exportItemsToExcel } from '../utils/exportUtils';
 
 export const MasterItemsPage: React.FC = () => {
   const { user, canEditOperational } = useAuth();
+  const { tr } = useLanguage();
   const {
     store,
     upsertItem,
@@ -139,7 +141,7 @@ export const MasterItemsPage: React.FC = () => {
     e.preventDefault();
     if (!user || !editingItem) return;
     if (!editingItem.itemName?.trim() || !editingItem.kategori?.trim()) {
-      toast('Nama item dan kategori wajib diisi', 'error');
+      toast(tr('Nama item dan kategori wajib diisi', 'Item name and category are required'), 'error');
       return;
     }
     upsertItem(
@@ -159,7 +161,12 @@ export const MasterItemsPage: React.FC = () => {
       },
       user
     );
-    toast(editingItem.id ? 'Item diperbarui' : 'Item baru ditambahkan', 'success');
+    toast(
+      editingItem.id
+        ? tr('Item diperbarui', 'Item updated')
+        : tr('Item baru ditambahkan', 'New item added'),
+      'success'
+    );
     setEditModalOpen(false);
   };
 
@@ -167,7 +174,7 @@ export const MasterItemsPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      toast('Berkas harus berupa gambar (JPG, PNG, WebP)', 'error');
+      toast(tr('Berkas harus berupa gambar (JPG, PNG, WebP)', 'File must be an image (JPG, PNG, WebP)'), 'error');
       return;
     }
     try {
@@ -175,12 +182,14 @@ export const MasterItemsPage: React.FC = () => {
       const { url, uploadedToCloud } = await processAndUploadImage(file, 'items', entityId);
       setEditingItem((prev) => (prev ? { ...prev, photoUrl: url } : prev));
       toast(
-        uploadedToCloud ? 'Foto diunggah ke Supabase Storage' : 'Foto berhasil dimuat',
+        uploadedToCloud
+          ? tr('Foto diunggah ke Supabase Storage', 'Photo uploaded to Supabase Storage')
+          : tr('Foto berhasil dimuat', 'Photo loaded successfully'),
         'success',
-        'Klik "Simpan Item" untuk menyimpan perubahan.'
+        tr('Klik "Simpan Item" untuk menyimpan perubahan.', 'Click "Save Item" to apply changes.')
       );
     } catch {
-      toast('Gagal memproses foto item', 'error');
+      toast(tr('Gagal memproses foto item', 'Failed to process item photo'), 'error');
     }
     e.target.value = '';
   };
@@ -189,7 +198,14 @@ export const MasterItemsPage: React.FC = () => {
     if (!user) return;
     const rec = getRecommendedMinStock(item.id);
     upsertItem({ ...item, minStock: rec }, user);
-    toast('Minimum stok diperbarui', 'success', `${item.itemName}: Min. Stok menjadi ${rec} ${item.uom} (±120%)`);
+    toast(
+      tr('Minimum stok diperbarui', 'Minimum stock updated'),
+      'success',
+      tr(
+        `${item.itemName}: Min. Stok menjadi ${rec} ${item.uom} (±120%)`,
+        `${item.itemName}: Min. Stock set to ${rec} ${item.uom} (±120%)`
+      )
+    );
   };
 
   const handleBulkSave = () => {
@@ -198,11 +214,17 @@ export const MasterItemsPage: React.FC = () => {
     if (bulkLoc) patch.location = bulkLoc;
     if (bulkMin !== '') patch.minStock = Math.max(0, Number(bulkMin));
     if (Object.keys(patch).length === 0) {
-      toast('Pilih minimal satu kolom untuk diubah massal', 'warning');
+      toast(tr('Pilih minimal satu kolom untuk diubah massal', 'Select at least one field for bulk edit'), 'warning');
       return;
     }
     bulkUpdateItems(selectedIds, patch, user);
-    toast(`${selectedIds.length} item berhasil diperbarui massal`, 'success');
+    toast(
+      tr(
+        `${selectedIds.length} item berhasil diperbarui massal`,
+        `${selectedIds.length} items updated in bulk`
+      ),
+      'success'
+    );
     setBulkModalOpen(false);
     setSelectedIds([]);
   };
@@ -216,7 +238,7 @@ export const MasterItemsPage: React.FC = () => {
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
       if (rows.length === 0) {
-        toast('File Excel kosong', 'error');
+        toast(tr('File Excel kosong', 'Excel file is empty'), 'error');
         return;
       }
       const cols = Object.keys(rows[0]);
@@ -244,7 +266,7 @@ export const MasterItemsPage: React.FC = () => {
       const name = String(r[colMap.itemName] || '').trim();
       const cat = String(r[colMap.kategori] || 'Umum').trim();
       if (!name) {
-        errors.push(`Baris ${idx + 2}: Nama item kosong.`);
+        errors.push(tr(`Baris ${idx + 2}: Nama item kosong.`, `Row ${idx + 2}: Item name is empty.`));
         return;
       }
       valid.push({
@@ -260,12 +282,15 @@ export const MasterItemsPage: React.FC = () => {
       });
     });
     return { valid, errors };
-  }, [colMap, rawExcelRows]);
+  }, [colMap, rawExcelRows, tr]);
 
   const handleConfirmImport = () => {
     if (!user || parsedImportValidation.valid.length === 0) return;
     const count = importItemsBatch(parsedImportValidation.valid, user);
-    toast(`${count} item berhasil diimpor dari Excel`, 'success');
+    toast(
+      tr(`${count} item berhasil diimpor dari Excel`, `${count} items imported from Excel`),
+      'success'
+    );
     setImportOpen(false);
     setRawExcelRows([]);
   };
@@ -275,9 +300,14 @@ export const MasterItemsPage: React.FC = () => {
       {/* Header & Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold font-display">Master Item &amp; Data Referensi</h2>
+          <h2 className="text-xl font-extrabold font-display">
+            {tr('Master Item & Data Referensi', 'Master Items & Reference Data')}
+          </h2>
           <p className="text-xs text-neutral-500">
-            Kelola katalog Office Supplies, Overhead Goods, label QR, dan rekomendasi stok minimum ±120%.
+            {tr(
+              'Kelola katalog Office Supplies, Overhead Goods, label QR, dan rekomendasi stok minimum ±120%.',
+              'Manage Office Supplies & Overhead Goods catalog, QR labels, and ±120% minimum stock recommendations.'
+            )}
           </p>
         </div>
 
@@ -290,7 +320,7 @@ export const MasterItemsPage: React.FC = () => {
                 tab === 'ITEMS' ? 'bg-white dark:bg-[#171A1F] shadow-sm' : 'text-neutral-500'
               }`}
             >
-              Katalog Item ({store.items.length})
+              {tr('Katalog Item', 'Item Catalog')} ({store.items.length})
             </button>
             <button
               type="button"
@@ -299,7 +329,7 @@ export const MasterItemsPage: React.FC = () => {
                 tab === 'MASTER_DATA' ? 'bg-white dark:bg-[#171A1F] shadow-sm' : 'text-neutral-500'
               }`}
             >
-              Kategori · UOM · Lokasi
+              {tr('Kategori · UOM · Lokasi', 'Categories · UOM · Locations')}
             </button>
           </div>
         </div>
@@ -319,7 +349,10 @@ export const MasterItemsPage: React.FC = () => {
                     setSearch(e.target.value);
                     setPage(1);
                   }}
-                  placeholder="Cari nama item, kode barang, kategori, atau lokasi..."
+                  placeholder={tr(
+                    'Cari nama item, kode barang, kategori, atau lokasi...',
+                    'Search item name, item code, category, or location...'
+                  )}
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114] text-xs"
                 />
               </div>
@@ -331,7 +364,7 @@ export const MasterItemsPage: React.FC = () => {
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Ekspor Excel
+                  {tr('Ekspor Excel', 'Export Excel')}
                 </button>
                 {canEditOperational && (
                   <>
@@ -341,15 +374,15 @@ export const MasterItemsPage: React.FC = () => {
                       className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800"
                     >
                       <Upload className="w-3.5 h-3.5" />
-                      Impor Excel
+                      {tr('Impor Excel', 'Import Excel')}
                     </button>
                     <button
                       type="button"
                       onClick={openCreateModal}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
                     >
                       <Plus className="w-4 h-4" />
-                      Tambah Item
+                      {tr('Tambah Item', 'Add Item')}
                     </button>
                   </>
                 )}
@@ -363,7 +396,7 @@ export const MasterItemsPage: React.FC = () => {
                   onChange={(e) => setJenisFilter(e.target.value as 'ALL' | SupplyType)}
                   className="px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
                 >
-                  <option value="ALL">Semua Jenis</option>
+                  <option value="ALL">{tr('Semua Jenis', 'All Types')}</option>
                   <option value="OFFICE_SUPPLIES">Office Supplies</option>
                   <option value="OVERHEAD_GOODS">Overhead Goods</option>
                 </select>
@@ -372,7 +405,7 @@ export const MasterItemsPage: React.FC = () => {
                   onChange={(e) => setCatFilter(e.target.value)}
                   className="px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
                 >
-                  <option value="ALL">Semua Kategori</option>
+                  <option value="ALL">{tr('Semua Kategori', 'All Categories')}</option>
                   {allCategories.map((c) => (
                     <option key={c} value={c}>
                       {c}
@@ -384,7 +417,7 @@ export const MasterItemsPage: React.FC = () => {
                   onChange={(e) => setLocFilter(e.target.value)}
                   className="px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
                 >
-                  <option value="ALL">Semua Lokasi</option>
+                  <option value="ALL">{tr('Semua Lokasi', 'All Locations')}</option>
                   {store.masterData.locations.map((l) => (
                     <option key={l} value={l}>
                       {l}
@@ -396,18 +429,18 @@ export const MasterItemsPage: React.FC = () => {
                   onChange={(e) => setStatusFilter(e.target.value as 'AKTIF' | 'KRITIS' | 'ARSIP')}
                   className="px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
                 >
-                  <option value="AKTIF">Status: Aktif</option>
-                  <option value="KRITIS">Status: Stok Kritis</option>
-                  <option value="ARSIP">Status: Arsip</option>
+                  <option value="AKTIF">{tr('Status: Aktif', 'Status: Active')}</option>
+                  <option value="KRITIS">{tr('Status: Stok Kritis', 'Status: Critical Stock')}</option>
+                  <option value="ARSIP">{tr('Status: Arsip', 'Status: Archived')}</option>
                 </select>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
                   className="px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
                 >
-                  <option value="NAME">Urut: Standar PDF</option>
-                  <option value="STOCK_ASC">Stok Terkecil</option>
-                  <option value="STOCK_DESC">Stok Terbesar</option>
+                  <option value="NAME">{tr('Urut: Standar PDF', 'Sort: Standard Order')}</option>
+                  <option value="STOCK_ASC">{tr('Stok Terkecil', 'Lowest Stock')}</option>
+                  <option value="STOCK_DESC">{tr('Stok Terbesar', 'Highest Stock')}</option>
                 </select>
               </div>
 
@@ -422,7 +455,7 @@ export const MasterItemsPage: React.FC = () => {
                       className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 text-xs font-semibold"
                     >
                       <QrCode className="w-3.5 h-3.5" />
-                      Cetak QR ({selectedIds.length})
+                      {tr('Cetak QR', 'Print QR')} ({selectedIds.length})
                     </button>
                     {canEditOperational && (
                       <button
@@ -430,7 +463,7 @@ export const MasterItemsPage: React.FC = () => {
                         onClick={() => setBulkModalOpen(true)}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-semibold"
                       >
-                        Edit Massal ({selectedIds.length})
+                        {tr('Edit Massal', 'Bulk Edit')} ({selectedIds.length})
                       </button>
                     )}
                   </>
@@ -439,7 +472,7 @@ export const MasterItemsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setViewMode('TABLE')}
-                    aria-label="Tampilan tabel"
+                    aria-label={tr('Tampilan tabel', 'Table view')}
                     className={`p-1.5 rounded-md ${
                       viewMode === 'TABLE' ? 'bg-white dark:bg-[#171A1F] shadow-sm' : ''
                     }`}
@@ -449,7 +482,7 @@ export const MasterItemsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setViewMode('GRID')}
-                    aria-label="Tampilan grid"
+                    aria-label={tr('Tampilan grid', 'Grid view')}
                     className={`p-1.5 rounded-md ${
                       viewMode === 'GRID' ? 'bg-white dark:bg-[#171A1F] shadow-sm' : ''
                     }`}
@@ -464,9 +497,12 @@ export const MasterItemsPage: React.FC = () => {
           {/* Data Display */}
           {pagedItems.length === 0 ? (
             <EmptyState
-              title="Tidak ada item yang cocok"
-              description="Ubah filter pencarian atau tambahkan item baru ke katalog."
-              actionLabel={canEditOperational ? 'Tambah Item Baru' : undefined}
+              title={tr('Tidak ada item yang cocok', 'No matching items found')}
+              description={tr(
+                'Ubah filter pencarian atau tambahkan item baru ke katalog.',
+                'Adjust your search filters or add a new item to the catalog.'
+              )}
+              actionLabel={canEditOperational ? tr('Tambah Item Baru', 'Add New Item') : undefined}
               onAction={canEditOperational ? openCreateModal : undefined}
             />
           ) : viewMode === 'TABLE' ? (
@@ -491,14 +527,14 @@ export const MasterItemsPage: React.FC = () => {
                           }}
                         />
                       </th>
-                      <th className="p-3 font-semibold w-16 text-center">Foto</th>
-                      <th className="p-3 font-semibold">Kode · Item</th>
-                      <th className="p-3 font-semibold">Kategori</th>
+                      <th className="p-3 font-semibold w-16 text-center">{tr('Foto', 'Photo')}</th>
+                      <th className="p-3 font-semibold">{tr('Kode · Item', 'Code · Item')}</th>
+                      <th className="p-3 font-semibold">{tr('Kategori', 'Category')}</th>
                       <th className="p-3 font-semibold">UOM</th>
-                      <th className="p-3 font-semibold text-right">Stok</th>
-                      <th className="p-3 font-semibold text-right">Min · Saran 120%</th>
-                      <th className="p-3 font-semibold">Lokasi</th>
-                      <th className="p-3 font-semibold text-right">Aksi</th>
+                      <th className="p-3 font-semibold text-right">{tr('Stok', 'Stock')}</th>
+                      <th className="p-3 font-semibold text-right">{tr('Min · Saran 120%', 'Min · 120% Sugg.')}</th>
+                      <th className="p-3 font-semibold">{tr('Lokasi', 'Location')}</th>
+                      <th className="p-3 font-semibold text-right">{tr('Aksi', 'Actions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -530,8 +566,8 @@ export const MasterItemsPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => setPreviewPhotoItem(item)}
-                                title={`Lihat foto ${item.itemName}`}
-                                className="group relative inline-flex items-center justify-center w-11 h-11 rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 bg-white shadow-xs hover:ring-2 hover:ring-[#E60012]/60 transition-all cursor-pointer"
+                                title={tr(`Lihat foto ${item.itemName}`, `View photo of ${item.itemName}`)}
+                                className="group relative inline-flex items-center justify-center w-11 h-11 rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700 bg-white shadow-xs hover:ring-2 hover:ring-theme-primary/60 transition-all cursor-pointer"
                               >
                                 <img
                                   src={item.photoUrl}
@@ -549,8 +585,8 @@ export const MasterItemsPage: React.FC = () => {
                                   setEditingItem(item);
                                   setEditModalOpen(true);
                                 }}
-                                title="Unggah foto item"
-                                className="inline-flex items-center justify-center w-11 h-11 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-[#E60012] hover:text-[#E60012] transition-colors cursor-pointer"
+                                title={tr('Unggah foto item', 'Upload item photo')}
+                                className="inline-flex items-center justify-center w-11 h-11 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-400 hover:border-theme-primary hover:text-theme-primary transition-colors cursor-pointer"
                               >
                                 <ImageIcon className="w-4 h-4" />
                               </button>
@@ -564,7 +600,7 @@ export const MasterItemsPage: React.FC = () => {
                             <div>
                               <div className="font-semibold">{item.itemName}</div>
                               <div className="text-[11px] text-neutral-500 font-mono-num">
-                                {item.codeItem || 'Tanpa kode'} ·{' '}
+                                {item.codeItem || tr('Tanpa kode', 'No code')} ·{' '}
                                 {item.jenis === 'OFFICE_SUPPLIES' ? 'Office' : 'Overhead'}
                               </div>
                             </div>
@@ -575,7 +611,7 @@ export const MasterItemsPage: React.FC = () => {
                           <td className="p-3 font-mono-num">{item.uom}</td>
                           <td
                             className={`p-3 text-right font-mono-num font-bold ${
-                              isCrit ? 'text-[#E60012]' : ''
+                              isCrit ? 'text-theme-primary' : ''
                             }`}
                           >
                             {item.currentStock}
@@ -586,11 +622,14 @@ export const MasterItemsPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleApplyRecommended(item)}
-                                title={`Terima saran ±120% rata-rata pemakaian (${recMin})`}
+                                title={tr(
+                                  `Terima saran ±120% rata-rata pemakaian (${recMin})`,
+                                  `Apply ±120% average usage suggestion (${recMin})`
+                                )}
                                 className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#C9A24B] hover:underline"
                               >
                                 <Sparkles className="w-3 h-3" />
-                                Saran: {recMin}
+                                {tr('Saran', 'Sugg')}: {recMin}
                               </button>
                             )}
                           </td>
@@ -603,7 +642,7 @@ export const MasterItemsPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => setPreviewPhotoItem(item)}
-                                  title="Lihat Foto Item"
+                                  title={tr('Lihat Foto Item', 'View Item Photo')}
                                   className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sky-600 dark:text-sky-400"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
@@ -612,7 +651,7 @@ export const MasterItemsPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => setQrModalItems([item])}
-                                title="Cetak Label QR"
+                                title={tr('Cetak Label QR', 'Print QR Label')}
                                 className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500"
                               >
                                 <QrCode className="w-3.5 h-3.5" />
@@ -625,7 +664,7 @@ export const MasterItemsPage: React.FC = () => {
                                       setEditingItem(item);
                                       setEditModalOpen(true);
                                     }}
-                                    title="Ubah Item"
+                                    title={tr('Ubah Item', 'Edit Item')}
                                     className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
                                   >
                                     <Edit3 className="w-3.5 h-3.5" />
@@ -635,9 +674,9 @@ export const MasterItemsPage: React.FC = () => {
                                     onClick={() => {
                                       if (!user) return;
                                       duplicateItem(item.id, user);
-                                      toast('Item diduplikasi', 'success');
+                                      toast(tr('Item diduplikasi', 'Item duplicated'), 'success');
                                     }}
-                                    title="Duplikat"
+                                    title={tr('Duplikat', 'Duplicate')}
                                     className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500"
                                   >
                                     <Copy className="w-3.5 h-3.5" />
@@ -648,11 +687,13 @@ export const MasterItemsPage: React.FC = () => {
                                       if (!user) return;
                                       toggleArchiveItem(item.id, !item.archived, user);
                                       toast(
-                                        item.archived ? 'Item dipulihkan' : 'Item diarsipkan',
+                                        item.archived
+                                          ? tr('Item dipulihkan', 'Item restored')
+                                          : tr('Item diarsipkan', 'Item archived'),
                                         'info'
                                       );
                                     }}
-                                    title={item.archived ? 'Pulihkan' : 'Arsipkan'}
+                                    title={item.archived ? tr('Pulihkan', 'Restore') : tr('Arsipkan', 'Archive')}
                                     className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-amber-600"
                                   >
                                     {item.archived ? (
@@ -695,19 +736,19 @@ export const MasterItemsPage: React.FC = () => {
                           />
                           <span className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1.5 text-white text-xs font-semibold transition-opacity">
                             <ZoomIn className="w-4 h-4" />
-                            Perbesar Foto
+                            {tr('Perbesar Foto', 'Enlarge Photo')}
                           </span>
                         </button>
                       ) : (
                         <div className="w-full aspect-[16/10] rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114]/60 flex flex-col items-center justify-center gap-1 text-neutral-400">
                           <ImageIcon className="w-5 h-5" />
-                          <span className="text-[11px]">Belum ada foto</span>
+                          <span className="text-[11px]">{tr('Belum ada foto', 'No photo yet')}</span>
                         </div>
                       )}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="text-[11px] font-mono-num text-neutral-500 truncate">
-                            {item.codeItem || 'Tanpa Kode'} · {item.kategori}
+                            {item.codeItem || tr('Tanpa Kode', 'No Code')} · {item.kategori}
                           </div>
                           <h4 className="text-sm font-bold mt-0.5">{item.itemName}</h4>
                         </div>
@@ -721,8 +762,8 @@ export const MasterItemsPage: React.FC = () => {
                       </div>
                       <div className="flex items-center justify-between text-xs">
                         <span>
-                          Stok:{' '}
-                          <strong className={`font-mono-num ${isCrit ? 'text-[#E60012]' : ''}`}>
+                          {tr('Stok', 'Stock')}:{' '}
+                          <strong className={`font-mono-num ${isCrit ? 'text-theme-primary' : ''}`}>
                             {item.currentStock} {item.uom}
                           </strong>
                         </span>
@@ -740,7 +781,7 @@ export const MasterItemsPage: React.FC = () => {
                           className="inline-flex items-center gap-1 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:underline"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          Lihat Foto
+                          {tr('Lihat Foto', 'View Photo')}
                         </button>
                       ) : (
                         <span />
@@ -752,9 +793,9 @@ export const MasterItemsPage: React.FC = () => {
                             setEditingItem(item);
                             setEditModalOpen(true);
                           }}
-                          className="text-xs font-semibold text-[#E60012] hover:underline"
+                          className="text-xs font-semibold text-theme-primary hover:underline"
                         >
-                          Ubah Item
+                          {tr('Ubah Item', 'Edit Item')}
                         </button>
                       )}
                     </div>
@@ -767,7 +808,10 @@ export const MasterItemsPage: React.FC = () => {
           {/* Pagination */}
           <div className="flex items-center justify-between text-xs text-neutral-500">
             <span>
-              Menampilkan {pagedItems.length} dari {filteredItems.length} item
+              {tr(
+                `Menampilkan ${pagedItems.length} dari ${filteredItems.length} item`,
+                `Showing ${pagedItems.length} of ${filteredItems.length} items`
+              )}
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -776,10 +820,10 @@ export const MasterItemsPage: React.FC = () => {
                 onClick={() => setPage((p) => p - 1)}
                 className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 disabled:opacity-40"
               >
-                Sebelumnya
+                {tr('Sebelumnya', 'Previous')}
               </button>
               <span className="font-mono-num">
-                Hal {page} / {totalPages}
+                {tr('Hal', 'Page')} {page} / {totalPages}
               </span>
               <button
                 type="button"
@@ -787,7 +831,7 @@ export const MasterItemsPage: React.FC = () => {
                 onClick={() => setPage((p) => p + 1)}
                 className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 disabled:opacity-40"
               >
-                Berikutnya
+                {tr('Berikutnya', 'Next')}
               </button>
             </div>
           </div>
@@ -797,14 +841,16 @@ export const MasterItemsPage: React.FC = () => {
         <div className="grid md:grid-cols-3 gap-5">
           {/* Kategori */}
           <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
-            <h3 className="text-sm font-bold">Master Kategori ({store.masterData.categoriesOffice.length})</h3>
+            <h3 className="text-sm font-bold">
+              {tr('Master Kategori', 'Master Categories')} ({store.masterData.categoriesOffice.length})
+            </h3>
             {canEditOperational && (
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newCat}
                   onChange={(e) => setNewCat(e.target.value)}
-                  placeholder="Tambah kategori baru..."
+                  placeholder={tr('Tambah kategori baru...', 'Add new category...')}
                   className="flex-1 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114] text-xs"
                 />
                 <button
@@ -819,11 +865,11 @@ export const MasterItemsPage: React.FC = () => {
                       user
                     );
                     setNewCat('');
-                    toast('Kategori ditambahkan', 'success');
+                    toast(tr('Kategori ditambahkan', 'Category added'), 'success');
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-[#E60012] text-white text-xs font-semibold"
+                  className="px-3 py-1.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
                 >
-                  Tambah
+                  {tr('Tambah', 'Add')}
                 </button>
               </div>
             )}
@@ -856,14 +902,16 @@ export const MasterItemsPage: React.FC = () => {
 
           {/* UOM */}
           <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
-            <h3 className="text-sm font-bold">Master Satuan / UOM ({store.masterData.uoms.length})</h3>
+            <h3 className="text-sm font-bold">
+              {tr('Master Satuan / UOM', 'Master Units / UOM')} ({store.masterData.uoms.length})
+            </h3>
             {canEditOperational && (
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newUom}
                   onChange={(e) => setNewUom(e.target.value)}
-                  placeholder="Contoh: BOX"
+                  placeholder={tr('Contoh: BOX', 'Example: BOX')}
                   className="flex-1 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114] text-xs uppercase"
                 />
                 <button
@@ -878,11 +926,11 @@ export const MasterItemsPage: React.FC = () => {
                       user
                     );
                     setNewUom('');
-                    toast('UOM ditambahkan', 'success');
+                    toast(tr('UOM ditambahkan', 'UOM added'), 'success');
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-[#E60012] text-white text-xs font-semibold"
+                  className="px-3 py-1.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
                 >
-                  Tambah
+                  {tr('Tambah', 'Add')}
                 </button>
               </div>
             )}
@@ -915,14 +963,16 @@ export const MasterItemsPage: React.FC = () => {
 
           {/* Lokasi */}
           <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
-            <h3 className="text-sm font-bold">Master Lokasi Simpan ({store.masterData.locations.length})</h3>
+            <h3 className="text-sm font-bold">
+              {tr('Master Lokasi Simpan', 'Master Storage Locations')} ({store.masterData.locations.length})
+            </h3>
             {canEditOperational && (
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newLoc}
                   onChange={(e) => setNewLoc(e.target.value)}
-                  placeholder="Contoh: Lemari 8 Baris 1"
+                  placeholder={tr('Contoh: Lemari 8 Baris 1', 'Example: Cabinet 8 Row 1')}
                   className="flex-1 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114] text-xs"
                 />
                 <button
@@ -937,11 +987,11 @@ export const MasterItemsPage: React.FC = () => {
                       user
                     );
                     setNewLoc('');
-                    toast('Lokasi ditambahkan', 'success');
+                    toast(tr('Lokasi ditambahkan', 'Location added'), 'success');
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-[#E60012] text-white text-xs font-semibold"
+                  className="px-3 py-1.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
                 >
-                  Tambah
+                  {tr('Tambah', 'Add')}
                 </button>
               </div>
             )}
@@ -983,7 +1033,7 @@ export const MasterItemsPage: React.FC = () => {
           >
             <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-neutral-800">
               <h3 className="text-base font-bold">
-                {editingItem.id ? 'Ubah Data Item' : 'Tambah Item Baru'}
+                {editingItem.id ? tr('Ubah Data Item', 'Edit Item Details') : tr('Tambah Item Baru', 'Add New Item')}
               </h3>
               <button type="button" onClick={() => setEditModalOpen(false)}>
                 <X className="w-5 h-5" />
@@ -992,7 +1042,7 @@ export const MasterItemsPage: React.FC = () => {
 
             <div className="grid sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block font-semibold mb-1">Jenis</label>
+                <label className="block font-semibold mb-1">{tr('Jenis', 'Type')}</label>
                 <select
                   value={editingItem.jenis}
                   onChange={(e) =>
@@ -1005,7 +1055,7 @@ export const MasterItemsPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block font-semibold mb-1">Kategori</label>
+                <label className="block font-semibold mb-1">{tr('Kategori', 'Category')}</label>
                 <select
                   value={editingItem.kategori}
                   onChange={(e) => setEditingItem({ ...editingItem, kategori: e.target.value })}
@@ -1019,17 +1069,17 @@ export const MasterItemsPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block font-semibold mb-1">Code Item</label>
+                <label className="block font-semibold mb-1">{tr('Kode Item', 'Item Code')}</label>
                 <input
                   type="text"
                   value={editingItem.codeItem || ''}
                   onChange={(e) => setEditingItem({ ...editingItem, codeItem: e.target.value })}
-                  placeholder="Contoh: 20355"
+                  placeholder={tr('Contoh: 20355', 'Example: 20355')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
               </div>
               <div>
-                <label className="block font-semibold mb-1">Nama Item (Item_Name)</label>
+                <label className="block font-semibold mb-1">{tr('Nama Item (Item_Name)', 'Item Name')}</label>
                 <input
                   type="text"
                   required
@@ -1053,7 +1103,7 @@ export const MasterItemsPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block font-semibold mb-1">Stok Saat Ini</label>
+                <label className="block font-semibold mb-1">{tr('Stok Saat Ini', 'Current Stock')}</label>
                 <input
                   type="number"
                   min={0}
@@ -1065,7 +1115,7 @@ export const MasterItemsPage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block font-semibold mb-1">Minimum Stok</label>
+                <label className="block font-semibold mb-1">{tr('Minimum Stok', 'Minimum Stock')}</label>
                 <input
                   type="number"
                   min={0}
@@ -1077,7 +1127,7 @@ export const MasterItemsPage: React.FC = () => {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1">Lokasi Simpan</label>
+                <label className="block font-semibold mb-1">{tr('Lokasi Simpan', 'Storage Location')}</label>
                 <select
                   value={editingItem.location}
                   onChange={(e) => setEditingItem({ ...editingItem, location: e.target.value })}
@@ -1091,7 +1141,7 @@ export const MasterItemsPage: React.FC = () => {
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1">Keterangan</label>
+                <label className="block font-semibold mb-1">{tr('Keterangan', 'Notes')}</label>
                 <input
                   type="text"
                   value={editingItem.notes || ''}
@@ -1100,22 +1150,25 @@ export const MasterItemsPage: React.FC = () => {
                 />
               </div>
               <div className="sm:col-span-2 space-y-2">
-                <label className="block font-semibold">Foto Item / Dokumentasi (Opsional)</label>
+                <label className="block font-semibold">{tr('Foto Item / Dokumentasi (Opsional)', 'Item Photo / Documentation (Optional)')}</label>
                 {editingItem.photoUrl ? (
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114]">
                     <img
                       src={editingItem.photoUrl}
-                      alt={editingItem.itemName || 'Pratinjau foto item'}
+                      alt={editingItem.itemName || tr('Pratinjau foto item', 'Item photo preview')}
                       className="w-24 h-24 rounded-xl object-cover border border-neutral-200 dark:border-neutral-700 bg-white shrink-0"
                     />
                     <div className="space-y-2 flex-1 min-w-0">
                       <div className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold">
-                        Foto siap disimpan · akan tampil di kolom Foto (Tabel) &amp; kartu Grid
+                        {tr(
+                          'Foto siap disimpan · akan tampil di kolom Foto (Tabel) & kartu Grid',
+                          'Photo ready to save · will appear in the Photo column (Table) & Grid cards'
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-[11px] font-semibold cursor-pointer hover:border-[#E60012]">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-[11px] font-semibold cursor-pointer hover:border-theme-primary">
                           <Upload className="w-3.5 h-3.5" />
-                          Ganti Foto
+                          {tr('Ganti Foto', 'Change Photo')}
                           <input
                             type="file"
                             accept="image/*"
@@ -1129,22 +1182,25 @@ export const MasterItemsPage: React.FC = () => {
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 text-[11px] font-semibold hover:bg-red-50 dark:hover:bg-red-950/30"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          Hapus Foto
+                          {tr('Hapus Foto', 'Remove Photo')}
                         </button>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <label className="flex items-center gap-3 p-3.5 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50/70 dark:bg-[#0F1114] hover:border-[#E60012] transition-colors cursor-pointer">
+                  <label className="flex items-center gap-3 p-3.5 rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50/70 dark:bg-[#0F1114] hover:border-theme-primary transition-colors cursor-pointer">
                     <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#171A1F] border border-neutral-200 dark:border-neutral-700 flex items-center justify-center text-neutral-400 shrink-0">
                       <ImageIcon className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
                       <div className="font-semibold text-neutral-700 dark:text-neutral-200">
-                        Klik untuk unggah foto barang (JPG, PNG, WebP)
+                        {tr('Klik untuk unggah foto barang (JPG, PNG, WebP)', 'Click to upload item photo (JPG, PNG, WebP)')}
                       </div>
                       <div className="text-[11px] text-neutral-500">
-                        Foto otomatis dikompresi agar ringan dan langsung tampil di tabel &amp; tampilan Grid.
+                        {tr(
+                          'Foto otomatis dikompresi agar ringan dan langsung tampil di tabel & tampilan Grid.',
+                          'Photos are automatically compressed and displayed directly in Table & Grid views.'
+                        )}
                       </div>
                     </div>
                     <input
@@ -1164,13 +1220,13 @@ export const MasterItemsPage: React.FC = () => {
                 onClick={() => setEditModalOpen(false)}
                 className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-xl bg-[#E60012] text-white text-xs font-semibold"
+                className="px-5 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
               >
-                Simpan Item
+                {tr('Simpan Item', 'Save Item')}
               </button>
             </div>
           </form>
@@ -1181,16 +1237,18 @@ export const MasterItemsPage: React.FC = () => {
       {bulkModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4">
-            <h3 className="text-base font-bold">Edit Massal ({selectedIds.length} item)</h3>
+            <h3 className="text-base font-bold">
+              {tr('Edit Massal', 'Bulk Edit')} ({selectedIds.length} {tr('item', 'items')})
+            </h3>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold mb-1">Ubah Lokasi Simpan (opsional)</label>
+                <label className="block font-semibold mb-1">{tr('Ubah Lokasi Simpan (opsional)', 'Change Storage Location (optional)')}</label>
                 <select
                   value={bulkLoc}
                   onChange={(e) => setBulkLoc(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 >
-                  <option value="">-- Tidak diubah --</option>
+                  <option value="">{tr('-- Tidak diubah --', '-- Unchanged --')}</option>
                   {store.masterData.locations.map((l) => (
                     <option key={l} value={l}>
                       {l}
@@ -1199,13 +1257,13 @@ export const MasterItemsPage: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block font-semibold mb-1">Ubah Minimum Stok (opsional)</label>
+                <label className="block font-semibold mb-1">{tr('Ubah Minimum Stok (opsional)', 'Change Minimum Stock (optional)')}</label>
                 <input
                   type="number"
                   min={0}
                   value={bulkMin}
                   onChange={(e) => setBulkMin(e.target.value)}
-                  placeholder="Kosongkan jika tidak diubah"
+                  placeholder={tr('Kosongkan jika tidak diubah', 'Leave blank to keep unchanged')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
               </div>
@@ -1216,14 +1274,14 @@ export const MasterItemsPage: React.FC = () => {
                 onClick={() => setBulkModalOpen(false)}
                 className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="button"
                 onClick={handleBulkSave}
-                className="px-4 py-2 rounded-xl bg-[#E60012] text-white text-xs font-semibold"
+                className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
               >
-                Terapkan Massal
+                {tr('Terapkan Massal', 'Apply Bulk Update')}
               </button>
             </div>
           </div>
@@ -1235,15 +1293,17 @@ export const MasterItemsPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm">
           <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="no-print flex items-center justify-between">
-              <h3 className="text-base font-bold">Label QR Item ({qrModalItems.length} label)</h3>
+              <h3 className="text-base font-bold">
+                {tr('Label QR Item', 'Item QR Labels')} ({qrModalItems.length} {tr('label', 'labels')})
+              </h3>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#E60012] text-white text-xs font-semibold"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  Cetak Label
+                  {tr('Cetak Label', 'Print Labels')}
                 </button>
                 <button type="button" onClick={() => setQrModalItems(null)}>
                   <X className="w-5 h-5" />
@@ -1261,7 +1321,7 @@ export const MasterItemsPage: React.FC = () => {
                     size={64}
                   />
                   <div className="min-w-0 flex-1 text-xs">
-                    <div className="font-mono-num font-bold text-[#E60012]">
+                    <div className="font-mono-num font-bold text-theme-primary">
                       {it.codeItem || it.id}
                     </div>
                     <div className="font-bold truncate">{it.itemName}</div>
@@ -1281,7 +1341,9 @@ export const MasterItemsPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm">
           <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold">Impor Master Item dari Excel (.xlsx / .csv)</h3>
+              <h3 className="text-base font-bold">
+                {tr('Impor Master Item dari Excel (.xlsx / .csv)', 'Import Master Items from Excel (.xlsx / .csv)')}
+              </h3>
               <button type="button" onClick={() => setImportOpen(false)}>
                 <X className="w-5 h-5" />
               </button>
@@ -1298,7 +1360,7 @@ export const MasterItemsPage: React.FC = () => {
                         onChange={(e) => setColMap({ ...colMap, [field]: e.target.value })}
                         className="w-full px-2 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                       >
-                        <option value="">-- Abaikan --</option>
+                        <option value="">{tr('-- Abaikan --', '-- Ignore --')}</option>
                         {excelCols.map((c) => (
                           <option key={c} value={c}>
                             {c}
@@ -1310,7 +1372,7 @@ export const MasterItemsPage: React.FC = () => {
                 </div>
                 <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800">
                   <div>
-                    Valid siap impor: <strong>{parsedImportValidation.valid.length}</strong> baris ·
+                    {tr('Valid siap impor', 'Valid ready to import')}: <strong>{parsedImportValidation.valid.length}</strong> {tr('baris', 'rows')} ·
                     Error: <strong className="text-red-600">{parsedImportValidation.errors.length}</strong>
                   </div>
                   {parsedImportValidation.errors.slice(0, 3).map((err, i) => (
@@ -1325,15 +1387,15 @@ export const MasterItemsPage: React.FC = () => {
                     onClick={() => setImportOpen(false)}
                     className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700"
                   >
-                    Batal
+                    {tr('Batal', 'Cancel')}
                   </button>
                   <button
                     type="button"
                     disabled={parsedImportValidation.valid.length === 0}
                     onClick={handleConfirmImport}
-                    className="px-4 py-2 rounded-xl bg-[#E60012] text-white font-semibold disabled:opacity-40"
+                    className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white font-semibold disabled:opacity-40"
                   >
-                    Impor {parsedImportValidation.valid.length} Item
+                    {tr('Impor', 'Import')} {parsedImportValidation.valid.length} {tr('Item', 'Items')}
                   </button>
                 </div>
               </div>
@@ -1355,7 +1417,7 @@ export const MasterItemsPage: React.FC = () => {
             <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-neutral-200 dark:border-neutral-800">
               <div className="min-w-0">
                 <div className="text-[11px] font-mono-num text-neutral-500 truncate">
-                  {previewPhotoItem.codeItem || 'Tanpa Kode'} · {previewPhotoItem.kategori}
+                  {previewPhotoItem.codeItem || tr('Tanpa Kode', 'No Code')} · {previewPhotoItem.kategori}
                 </div>
                 <h3 className="text-sm sm:text-base font-bold truncate">
                   {previewPhotoItem.itemName}
@@ -1364,7 +1426,7 @@ export const MasterItemsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPreviewPhotoItem(null)}
-                aria-label="Tutup pratinjau foto"
+                aria-label={tr('Tutup pratinjau foto', 'Close photo preview')}
                 className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 <X className="w-5 h-5" />
@@ -1381,11 +1443,11 @@ export const MasterItemsPage: React.FC = () => {
 
             <div className="px-5 py-3.5 border-t border-neutral-200 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-3 text-xs">
               <div className="text-neutral-600 dark:text-neutral-400">
-                Stok:{' '}
+                {tr('Stok', 'Stock')}:{' '}
                 <strong className="font-mono-num text-[#1F2328] dark:text-white">
                   {previewPhotoItem.currentStock} {previewPhotoItem.uom}
                 </strong>{' '}
-                · Lokasi: <strong>{previewPhotoItem.location}</strong>
+                · {tr('Lokasi', 'Location')}: <strong>{previewPhotoItem.location}</strong>
               </div>
               <div className="flex items-center gap-2">
                 {canEditOperational && (
@@ -1397,18 +1459,18 @@ export const MasterItemsPage: React.FC = () => {
                       setEditingItem(target);
                       setEditModalOpen(true);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold hover:border-[#E60012]"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold hover:border-theme-primary"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
-                    Ganti / Ubah Foto
+                    {tr('Ganti / Ubah Foto', 'Change / Edit Photo')}
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setPreviewPhotoItem(null)}
-                  className="px-3.5 py-1.5 rounded-xl bg-[#E60012] text-white font-semibold"
+                  className="px-3.5 py-1.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white font-semibold"
                 >
-                  Tutup
+                  {tr('Tutup', 'Close')}
                 </button>
               </div>
             </div>

@@ -57,7 +57,7 @@ export const DashboardPage: React.FC = () => {
   const { user, canEditOperational } = useAuth();
   const { store, updateForecastRow } = useSupplyHub();
   const { activePreset } = useTheme();
-  const { tr } = useLanguage();
+  const { tr, language } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -133,7 +133,7 @@ export const DashboardPage: React.FC = () => {
       '2026-10',
     ];
     months.forEach((m) =>
-      map.set(m, { period: m, label: formatPeriodShort(m), terima: 0, pakai: 0 })
+      map.set(m, { period: m, label: formatPeriodShort(m, language), terima: 0, pakai: 0 })
     );
     store.transactions.forEach((tx) => {
       const bucket = map.get(tx.period);
@@ -142,7 +142,7 @@ export const DashboardPage: React.FC = () => {
       if (tx.type === 'PAKAI') bucket.pakai += tx.qty;
     });
     return Array.from(map.values());
-  }, [store.transactions]);
+  }, [language, store.transactions]);
 
   // Donut: Stock Composition by Category (Top 5 + Lainnya)
   const categoryDonut = useMemo(() => {
@@ -294,7 +294,7 @@ export const DashboardPage: React.FC = () => {
           >
             {availablePeriods.map((p) => (
               <option key={p} value={p}>
-                {tr('Periode', 'Period')} {formatPeriodShort(p)}
+                {tr('Periode', 'Period')} {formatPeriodShort(p, language)}
               </option>
             ))}
           </select>
@@ -379,7 +379,7 @@ export const DashboardPage: React.FC = () => {
             <CountUp value={monthlyUsageQty} />
           </div>
           <div className="text-[11px] text-neutral-500 mt-1">
-            {tr('Total unit keluar', 'Total units issued')} ({formatPeriodShort(selectedPeriod)})
+            {tr('Total unit keluar', 'Total units issued')} ({formatPeriodShort(selectedPeriod, language)})
           </div>
         </div>
 
@@ -389,7 +389,7 @@ export const DashboardPage: React.FC = () => {
             <FileCheck2 className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-xl font-extrabold font-display mt-2 text-emerald-700 dark:text-emerald-400">
-            {activeReport ? getStageLabel(activeReport.status) : tr('Belum Ada', 'Not Created')}
+            {activeReport ? getStageLabel(activeReport.status, language) : tr('Belum Ada', 'Not Created')}
           </div>
           <div className="text-[11px] text-neutral-500 mt-1 truncate">
             {activeReport ? activeReport.documentId : tr('Buat laporan periode ini', 'Create period report')}
@@ -789,7 +789,7 @@ export const DashboardPage: React.FC = () => {
                     {log.objectType}: {log.objectLabel}
                   </div>
                   <div className="text-[10px] text-neutral-400 font-mono-num mt-0.5">
-                    {formatDateTimeIndo(log.timestamp)}
+                    {formatDateTimeIndo(log.timestamp, language)}
                   </div>
                 </div>
               </div>

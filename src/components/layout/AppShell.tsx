@@ -32,7 +32,7 @@ import { useSupplyHub } from '../../context/SupplyHubContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import type { UserRole } from '../../types';
-import { formatDateTimeIndo, getRoleLabel } from '../../utils/format';
+import { formatDateTimeIndo, getRoleLabel, getStageLabel } from '../../utils/format';
 import { AppearanceControls } from '../common/AppearanceControls';
 import { AjiuLogoBadge, HseLogoBadge } from '../common/BrandEmblems';
 
@@ -137,7 +137,7 @@ export const AppShell: React.FC = () => {
   } = useAuth();
   const { store, markNotificationRead, markAllNotificationsRead, resetDemoData } = useSupplyHub();
   const { activePreset } = useTheme();
-  const { tr } = useLanguage();
+  const { tr, language } = useLanguage();
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -282,7 +282,7 @@ export const AppShell: React.FC = () => {
             type="button"
             onClick={() => setCollapsed((c) => !c)}
             className="hidden xl:inline-flex p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            aria-label={collapsed ? 'Perluas sidebar' : 'Ciutkan sidebar'}
+            aria-label={collapsed ? tr('Perluas sidebar', 'Expand sidebar') : tr('Ciutkan sidebar', 'Collapse sidebar')}
           >
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
@@ -290,7 +290,7 @@ export const AppShell: React.FC = () => {
             type="button"
             onClick={() => setMobileOpen(false)}
             className="xl:hidden p-1.5 rounded-lg text-neutral-500"
-            aria-label="Tutup menu"
+            aria-label={tr('Tutup menu', 'Close menu')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -354,7 +354,7 @@ export const AppShell: React.FC = () => {
               type="button"
               onClick={() => setMobileOpen(true)}
               className="xl:hidden p-2 rounded-xl border border-neutral-200 dark:border-neutral-700 shrink-0"
-              aria-label="Buka navigasi"
+              aria-label={tr('Buka navigasi', 'Open navigation')}
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -456,7 +456,7 @@ export const AppShell: React.FC = () => {
                               {n.title}
                             </span>
                             <span className="text-[10px] text-neutral-400">
-                              {formatDateTimeIndo(n.createdAt)}
+                              {formatDateTimeIndo(n.createdAt, language)}
                             </span>
                           </div>
                           <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 line-clamp-2">
@@ -630,7 +630,7 @@ export const AppShell: React.FC = () => {
                         <span className="font-semibold">{rep.title}</span>
                       </div>
                       <span className="text-neutral-500">
-                        {rep.periodLabel} · {rep.status}
+                        {rep.periodLabel} · {getStageLabel(rep.status, language)}
                       </span>
                     </button>
                   ))}

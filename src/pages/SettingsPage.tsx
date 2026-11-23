@@ -144,7 +144,7 @@ export const SettingsPage: React.FC = () => {
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     updateSettings(settingsForm, user);
-    toast('Pengaturan dokumen & sistem disimpan', 'success');
+    toast(tr('Pengaturan dokumen & sistem disimpan', 'Document & system settings saved'), 'success');
   };
 
   const handleDownloadBackup = () => {
@@ -154,7 +154,7 @@ export const SettingsPage: React.FC = () => {
       json,
       'application/json'
     );
-    toast('Backup JSON berhasil diunduh', 'success');
+    toast(tr('Backup JSON berhasil diunduh', 'JSON backup downloaded'), 'success');
   };
 
   const handleRestoreBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,9 +164,13 @@ export const SettingsPage: React.FC = () => {
     reader.onload = () => {
       try {
         importBackupJson(String(reader.result), user);
-        toast('Restore data JSON berhasil', 'success');
+        toast(tr('Restore data JSON berhasil', 'JSON data restored successfully'), 'success');
       } catch (err) {
-        toast('Gagal memulihkan backup', 'error', err instanceof Error ? err.message : undefined);
+        toast(
+          tr('Gagal memulihkan backup', 'Failed to restore backup'),
+          'error',
+          err instanceof Error ? err.message : undefined
+        );
       }
     };
     reader.readAsText(file);
@@ -213,7 +217,13 @@ export const SettingsPage: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file || !userForm) return;
     if (!file.type.startsWith('image/')) {
-      toast('Berkas tanda tangan harus berupa gambar (PNG/JPG/SVG)', 'error');
+      toast(
+        tr(
+          'Berkas tanda tangan harus berupa gambar (PNG/JPG/SVG)',
+          'Signature file must be an image (PNG/JPG/SVG)'
+        ),
+        'error'
+      );
       return;
     }
     try {
@@ -223,9 +233,13 @@ export const SettingsPage: React.FC = () => {
         userForm.id || userForm.username || `sig-${Date.now()}`
       );
       setUserForm((prev) => (prev ? { ...prev, savedSignatureDataUrl: url } : prev));
-      toast('Gambar tanda tangan dimuat', 'success', 'Klik "Simpan Perubahan" untuk menerapkan.');
+      toast(
+        tr('Gambar tanda tangan dimuat', 'Signature image loaded'),
+        'success',
+        tr('Klik "Simpan Perubahan" untuk menerapkan.', 'Click "Save Changes" to apply.')
+      );
     } catch {
-      toast('Gagal memproses gambar tanda tangan', 'error');
+      toast(tr('Gagal memproses gambar tanda tangan', 'Failed to process signature image'), 'error');
     }
     e.target.value = '';
   };
@@ -236,7 +250,10 @@ export const SettingsPage: React.FC = () => {
 
     const existing = userForm.id ? store.users.find((u) => u.id === userForm.id) : undefined;
     if (!existing && !userForm.password.trim()) {
-      toast('Kata sandi wajib diisi untuk akun baru', 'error');
+      toast(
+        tr('Kata sandi wajib diisi untuk akun baru', 'Password is required for new accounts'),
+        'error'
+      );
       return;
     }
 
@@ -261,16 +278,21 @@ export const SettingsPage: React.FC = () => {
 
     const res = upsertUser(payload, user, { syncReorg: userForm.syncReorg });
     if (!res.ok) {
-      toast('Gagal menyimpan akun', 'error', res.error);
+      toast(tr('Gagal menyimpan akun', 'Failed to save account'), 'error', res.error);
       return;
     }
 
     setUserForm(null);
     toast(
-      existing ? 'Akun pengguna berhasil diperbarui' : 'Pengguna baru berhasil ditambahkan',
+      existing
+        ? tr('Akun pengguna berhasil diperbarui', 'User account updated')
+        : tr('Pengguna baru berhasil ditambahkan', 'New user added'),
       'success',
       existing && userForm.syncReorg
-        ? 'Nama & jabatan turut diselaraskan pada Template Tanda Tangan & Laporan Draft.'
+        ? tr(
+            'Nama & jabatan turut diselaraskan pada Template Tanda Tangan & Laporan Draft.',
+            'Name & title were also synced across Signature Templates & Draft Reports.'
+          )
         : undefined
     );
   };
@@ -285,14 +307,17 @@ export const SettingsPage: React.FC = () => {
       user
     );
     if (!res.ok) {
-      toast('Serah terima gagal', 'error', res.error);
+      toast(tr('Serah terima gagal', 'Handover failed'), 'error', res.error);
       return;
     }
-    const targetName = store.users.find((u) => u.id === handoverToUserId)?.name || 'Pengganti';
+    const targetName = store.users.find((u) => u.id === handoverToUserId)?.name || tr('Pengganti', 'Successor');
     toast(
-      'Serah terima jabatan selesai',
+      tr('Serah terima jabatan selesai', 'Position handover completed'),
       'success',
-      `Slot persetujuan dari ${handoverFromUser.name} dialihkan ke ${targetName} (${res.updatedTemplates} template, ${res.updatedReports} laporan draft).`
+      tr(
+        `Slot persetujuan dari ${handoverFromUser.name} dialihkan ke ${targetName} (${res.updatedTemplates} template, ${res.updatedReports} laporan draft).`,
+        `Approval slots from ${handoverFromUser.name} reassigned to ${targetName} (${res.updatedTemplates} templates, ${res.updatedReports} draft reports).`
+      )
     );
     setHandoverFromUser(null);
     setHandoverToUserId('');
@@ -302,10 +327,13 @@ export const SettingsPage: React.FC = () => {
     if (!deleteTargetUser) return;
     const res = deleteUser(deleteTargetUser.id, user);
     if (!res.ok) {
-      toast('Tidak dapat menghapus akun', 'error', res.error);
+      toast(tr('Tidak dapat menghapus akun', 'Unable to delete account'), 'error', res.error);
       return;
     }
-    toast(`Akun ${deleteTargetUser.name} dihapus`, 'success');
+    toast(
+      tr(`Akun ${deleteTargetUser.name} dihapus`, `Account ${deleteTargetUser.name} deleted`),
+      'success'
+    );
     setDeleteTargetUser(null);
   };
 
@@ -315,12 +343,15 @@ export const SettingsPage: React.FC = () => {
     setSyncingSupabase(false);
     if (res.ok) {
       toast(
-        'Sinkronisasi Supabase berhasil',
+        tr('Sinkronisasi Supabase berhasil', 'Supabase sync completed'),
         'success',
-        'Seluruh akun, tabel sistem, dan foto telah tersimpan ke PostgreSQL & Storage Supabase.'
+        tr(
+          'Seluruh akun, tabel sistem, dan foto telah tersimpan ke PostgreSQL & Storage Supabase.',
+          'All accounts, system tables, and media have been synced to Supabase PostgreSQL & Storage.'
+        )
       );
     } else {
-      toast('Sinkronisasi Supabase gagal', 'error', res.error);
+      toast(tr('Sinkronisasi Supabase gagal', 'Supabase sync failed'), 'error', res.error);
     }
   };
 
@@ -632,7 +663,7 @@ export const SettingsPage: React.FC = () => {
 
         <div className="grid sm:grid-cols-3 gap-3">
           <div>
-            <label className="block font-semibold mb-1">Departemen</label>
+            <label className="block font-semibold mb-1">{tr('Departemen', 'Department')}</label>
             <input
               type="text"
               value={settingsForm.department}
@@ -641,7 +672,7 @@ export const SettingsPage: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block font-semibold mb-1">Seksi</label>
+            <label className="block font-semibold mb-1">{tr('Seksi', 'Section')}</label>
             <input
               type="text"
               value={settingsForm.section}
@@ -650,7 +681,9 @@ export const SettingsPage: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block font-semibold mb-1">Kota Tanda Tangan</label>
+            <label className="block font-semibold mb-1">
+              {tr('Kota Tanda Tangan', 'Signature City')}
+            </label>
             <input
               type="text"
               value={settingsForm.locationCity}
@@ -662,7 +695,10 @@ export const SettingsPage: React.FC = () => {
 
         <div className="space-y-2">
           <label className="block font-semibold">
-            7 Petunjuk Laporan Pengechekan Barang (1 baris = 1 poin)
+            {tr(
+              '7 Petunjuk Laporan Pengechekan Barang (1 baris = 1 poin)',
+              '7 Stock Inspection Report Guidelines (1 line = 1 point)'
+            )}
           </label>
           <textarea
             rows={7}
@@ -711,23 +747,26 @@ export const SettingsPage: React.FC = () => {
                 type="text"
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Cari nama, username, jabatan, atau seksi..."
+                placeholder={tr(
+                  'Cari nama, username, jabatan, atau seksi...',
+                  'Search name, username, job title, or section...'
+                )}
                 className="w-full pl-8 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-[#0F1114]"
               />
             </div>
             <div className="inline-flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800">
               {(
                 [
-                  { id: 'ALL', label: 'Semua' },
-                  { id: 'ACTIVE', label: 'Aktif' },
-                  { id: 'INACTIVE', label: 'Nonaktif' },
+                  { id: 'ALL', label: tr('Semua', 'All') },
+                  { id: 'ACTIVE', label: tr('Aktif', 'Active') },
+                  { id: 'INACTIVE', label: tr('Nonaktif', 'Inactive') },
                 ] as const
               ).map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
                   onClick={() => setUserStatusFilter(opt.id)}
-                  className={`px-2.5 py-1 rounded-lg font-semibold ${
+                  className={`px-2.5 py-1 rounded-lg font-semibold cursor-pointer ${
                     userStatusFilter === opt.id
                       ? 'bg-white dark:bg-[#171A1F] text-neutral-900 dark:text-white shadow-sm'
                       : 'text-neutral-500'
@@ -743,12 +782,12 @@ export const SettingsPage: React.FC = () => {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-neutral-200 dark:border-neutral-800 text-left text-neutral-500">
-                  <th className="py-2.5 pr-3">Pengguna</th>
+                  <th className="py-2.5 pr-3">{tr('Pengguna', 'User')}</th>
                   <th className="py-2.5 px-2">Username</th>
-                  <th className="py-2.5 px-2">Jabatan &amp; Seksi</th>
-                  <th className="py-2.5 px-2">Peran</th>
+                  <th className="py-2.5 px-2">{tr('Jabatan & Seksi', 'Position & Section')}</th>
+                  <th className="py-2.5 px-2">{tr('Peran', 'Role')}</th>
                   <th className="py-2.5 px-2 text-center">Status</th>
-                  <th className="py-2.5 pl-2 text-right">Aksi</th>
+                  <th className="py-2.5 pl-2 text-right">{tr('Aksi', 'Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -770,7 +809,9 @@ export const SettingsPage: React.FC = () => {
                             <div className="font-semibold flex items-center gap-1.5">
                               {u.name}
                               {isCurrentUser && (
-                                <span className="text-[10px] font-bold text-[#E60012]">(Anda)</span>
+                                <span className="text-[10px] font-bold text-theme-primary">
+                                  ({tr('Anda', 'You')})
+                                </span>
                               )}
                             </div>
                             <div className="text-[11px] text-neutral-500 font-mono-num">
@@ -794,9 +835,9 @@ export const SettingsPage: React.FC = () => {
                               { syncReorg: false }
                             );
                             if (!res.ok) {
-                              toast('Gagal mengubah peran', 'error', res.error);
+                              toast(tr('Gagal mengubah peran', 'Failed to change role'), 'error', res.error);
                             } else {
-                              toast(`Peran ${u.name} diperbarui`, 'success');
+                              toast(tr(`Peran ${u.name} diperbarui`, `${u.name}'s role updated`), 'success');
                             }
                           }}
                           className="px-2 py-1 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
@@ -816,19 +857,23 @@ export const SettingsPage: React.FC = () => {
                               syncReorg: false,
                             });
                             if (!res.ok) {
-                              toast('Gagal mengubah status', 'error', res.error);
+                              toast(tr('Gagal mengubah status', 'Failed to change status'), 'error', res.error);
                             } else {
                               toast(
-                                `${u.name} ${!u.active ? 'diaktifkan' : 'dinonaktifkan'}`,
+                                `${u.name} ${
+                                  !u.active
+                                    ? tr('diaktifkan', 'activated')
+                                    : tr('dinonaktifkan', 'deactivated')
+                                }`,
                                 'success'
                               );
                             }
                           }}
-                          className={`font-semibold disabled:opacity-50 ${
+                          className={`font-semibold disabled:opacity-50 cursor-pointer ${
                             u.active ? 'text-emerald-600' : 'text-red-600'
                           }`}
                         >
-                          {u.active ? 'Aktif' : 'Nonaktif'}
+                          {u.active ? tr('Aktif', 'Active') : tr('Nonaktif', 'Inactive')}
                         </button>
                       </td>
                       <td className="py-2.5 pl-2 text-right">
@@ -836,8 +881,8 @@ export const SettingsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => openEditUserModal(u, false)}
-                            title="Edit Akun & Penyesuaian Jabatan"
-                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-[#E60012] hover:text-[#E60012] font-semibold transition"
+                            title={tr('Edit Akun & Penyesuaian Jabatan', 'Edit Account & Position')}
+                            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-theme-primary hover:text-theme-primary font-semibold transition cursor-pointer"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                             Edit
@@ -852,8 +897,8 @@ export const SettingsPage: React.FC = () => {
                               setHandoverToUserId(firstOther?.id || '');
                               setHandoverDeactivateOld(u.id !== user.id);
                             }}
-                            title="Serah Terima Jabatan / Re-organisasi"
-                            className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-amber-500 hover:text-amber-600 transition"
+                            title={tr('Serah Terima Jabatan / Re-organisasi', 'Position Handover / Reorganization')}
+                            className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-amber-500 hover:text-amber-600 transition cursor-pointer"
                           >
                             <ArrowRightLeft className="w-3.5 h-3.5" />
                           </button>
@@ -861,8 +906,8 @@ export const SettingsPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setDeleteTargetUser(u)}
-                              title="Hapus Akun"
-                              className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-red-500 hover:text-red-600 transition"
+                              title={tr('Hapus Akun', 'Delete Account')}
+                              className="p-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-red-500 hover:text-red-600 transition cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -891,7 +936,10 @@ export const SettingsPage: React.FC = () => {
                 )}
               </h3>
               <p className="text-xs text-neutral-500 mt-1 max-w-3xl leading-relaxed">
-                Struktur database mencakup keseluruhan data HR SupplyHub: <strong>19 tabel relasional PostgreSQL</strong> (akun pengguna &amp; re-organisasi, database karyawan HR, pengambilan &amp; approval barang, master item, transaksi, stock opname, inventaris overhead &amp; mutasi, rolling forecast GA FY2026, template &amp; laporan bulanan A3, arsip dokumen, notifikasi, audit trail) serta <strong>2 Storage Bucket (<code className="font-mono-num">supplyhub-media</code> &amp; <code className="font-mono-num">supplyhub-documents</code>)</strong> untuk foto barang, tanda tangan, dan arsip dokumen PDF/Excel/Word.
+                {tr(
+                  'Struktur database mencakup keseluruhan data HR SupplyHub: 19 tabel relasional PostgreSQL (akun pengguna & re-organisasi, database karyawan HR, pengambilan & approval barang, master item, transaksi, stock opname, inventaris overhead & mutasi, rolling forecast GA FY2026, template & laporan bulanan A3, arsip dokumen, notifikasi, audit trail) serta 2 Storage Bucket (supplyhub-media & supplyhub-documents) untuk foto barang, tanda tangan, dan arsip dokumen PDF/Excel/Word.',
+                  'Database schema covers all HR SupplyHub data: 19 PostgreSQL relational tables (user accounts & reorganization, HR employee database, supply requests & approvals, master items, transactions, stock opname, overhead assets & mutations, FY2026 GA rolling forecast, A3 monthly templates & reports, document archive, notifications, audit trail) plus 2 Storage Buckets (supplyhub-media & supplyhub-documents) for item photos, signatures, and PDF/Excel/Word files.'
+                )}
               </p>
             </div>
             {isSupabaseConnected && (
@@ -899,7 +947,7 @@ export const SettingsPage: React.FC = () => {
                 type="button"
                 disabled={syncingSupabase}
                 onClick={handlePushToSupabase}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary disabled:opacity-60 text-white text-xs font-semibold shrink-0 transition cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover disabled:opacity-60 text-white text-xs font-semibold shrink-0 transition cursor-pointer"
               >
                 <CloudUpload className="w-4 h-4" />
                 {syncingSupabase
@@ -911,24 +959,42 @@ export const SettingsPage: React.FC = () => {
 
           <div className="grid sm:grid-cols-3 gap-3 text-xs">
             <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
-              <div className="text-[11px] font-semibold text-neutral-500">Cakupan Tabel Inti</div>
-              <div className="font-bold text-sm font-mono-num">19 Tabel Relasional</div>
+              <div className="text-[11px] font-semibold text-neutral-500">
+                {tr('Cakupan Tabel Inti', 'Core Table Coverage')}
+              </div>
+              <div className="font-bold text-sm font-mono-num">
+                {tr('19 Tabel Relasional', '19 Relational Tables')}
+              </div>
               <p className="text-[11px] text-neutral-500">
-                Akun ({store.users.length}), Karyawan HR ({(store.employees || []).length}), Item ({store.items.length}), RF GA ({store.rollingForecast.rows.length}), Dokumen ({(store.documents || []).length}).
+                {tr('Akun', 'Users')} ({store.users.length}), {tr('Karyawan HR', 'HR Employees')} (
+                {(store.employees || []).length}), {tr('Item', 'Items')} ({store.items.length}), RF GA (
+                {store.rollingForecast.rows.length}), {tr('Dokumen', 'Docs')} ({(store.documents || []).length}).
               </p>
             </div>
             <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
-              <div className="text-[11px] font-semibold text-neutral-500">Storage Media &amp; Dokumen</div>
-              <div className="font-bold text-sm font-mono-num">2 Bucket Storage</div>
+              <div className="text-[11px] font-semibold text-neutral-500">
+                {tr('Storage Media & Dokumen', 'Media & Document Storage')}
+              </div>
+              <div className="font-bold text-sm font-mono-num">
+                {tr('2 Bucket Storage', '2 Storage Buckets')}
+              </div>
               <p className="text-[11px] text-neutral-500">
-                {totalPhotosCount} foto item/aset (<code className="font-mono-num">supplyhub-media</code>) &amp; {(store.documents || []).length} arsip PDF/Excel/Word (<code className="font-mono-num">supplyhub-documents</code>).
+                {totalPhotosCount} {tr('foto item/aset', 'item/asset photos')} (
+                <code className="font-mono-num">supplyhub-media</code>) &amp; {(store.documents || []).length}{' '}
+                {tr('arsip PDF/Excel/Word', 'PDF/Excel/Word archives')} (
+                <code className="font-mono-num">supplyhub-documents</code>).
               </p>
             </div>
             <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">
-              <div className="text-[11px] font-semibold text-neutral-500">Variabel Koneksi (.env)</div>
+              <div className="text-[11px] font-semibold text-neutral-500">
+                {tr('Variabel Koneksi (.env)', 'Connection Variables (.env)')}
+              </div>
               <div className="font-bold text-sm font-mono-num">VITE_SUPABASE_URL</div>
               <p className="text-[11px] text-neutral-500">
-                Isi <code className="font-mono-num">VITE_SUPABASE_URL</code> &amp; <code className="font-mono-num">VITE_SUPABASE_ANON_KEY</code> lalu jalankan SQL di bawah di SQL Editor Supabase.
+                {tr(
+                  'Isi VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY lalu jalankan SQL di bawah di SQL Editor Supabase.',
+                  'Set VITE_SUPABASE_URL & VITE_SUPABASE_ANON_KEY, then run the SQL scripts below in Supabase SQL Editor.'
+                )}
               </p>
             </div>
           </div>
@@ -938,34 +1004,43 @@ export const SettingsPage: React.FC = () => {
               type="button"
               onClick={() => {
                 downloadTextFile('01_schema.sql', getSupabaseSchemaSql());
-                toast('01_schema.sql berhasil diunduh', 'success');
+                toast(tr('01_schema.sql berhasil diunduh', '01_schema.sql downloaded'), 'success');
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-[#E60012] text-xs font-semibold transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary text-xs font-semibold transition cursor-pointer"
             >
-              <FileCode2 className="w-3.5 h-3.5 text-[#E60012]" />
-              Unduh 01_schema.sql
+              <FileCode2 className="w-3.5 h-3.5 text-theme-primary" />
+              {tr('Unduh 01_schema.sql', 'Download 01_schema.sql')}
             </button>
             <button
               type="button"
               onClick={() => {
                 downloadTextFile('02_storage_and_rls.sql', getSupabaseStorageRlsSql());
-                toast('02_storage_and_rls.sql berhasil diunduh', 'success');
+                toast(
+                  tr('02_storage_and_rls.sql berhasil diunduh', '02_storage_and_rls.sql downloaded'),
+                  'success'
+                );
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-[#E60012] text-xs font-semibold transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary text-xs font-semibold transition cursor-pointer"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              Unduh 02_storage_and_rls.sql
+              {tr('Unduh 02_storage_and_rls.sql', 'Download 02_storage_and_rls.sql')}
             </button>
             <button
               type="button"
               onClick={() => {
                 downloadTextFile('03_migration_hr_employees.sql', getSupabaseEmployeeMigrationSql());
-                toast('03_migration_hr_employees.sql berhasil diunduh', 'success');
+                toast(
+                  tr(
+                    '03_migration_hr_employees.sql berhasil diunduh',
+                    '03_migration_hr_employees.sql downloaded'
+                  ),
+                  'success'
+                );
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#C9A24B]/60 bg-[#C9A24B]/10 hover:border-[#E60012] text-xs font-semibold transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#C9A24B]/60 bg-[#C9A24B]/10 hover:border-theme-primary text-xs font-semibold transition cursor-pointer"
             >
               <Users className="w-3.5 h-3.5 text-[#9A7422]" />
-              Unduh Migrasi Karyawan HR (.sql)
+              {tr('Unduh Migrasi Karyawan HR (.sql)', 'Download HR Employees Migration (.sql)')}
             </button>
             <button
               type="button"
@@ -975,12 +1050,15 @@ export const SettingsPage: React.FC = () => {
                   `04_seed_hr_supplyhub_${new Date().toISOString().slice(0, 10)}.sql`,
                   seedSql
                 );
-                toast('SQL Seed Data Terkini berhasil diunduh', 'success');
+                toast(
+                  tr('SQL Seed Data Terkini berhasil diunduh', 'Current Seed Data SQL downloaded'),
+                  'success'
+                );
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-black text-xs font-semibold transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-black text-xs font-semibold transition cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
-              Unduh Seed Data Terkini (.sql)
+              {tr('Unduh Seed Data Terkini (.sql)', 'Download Current Seed SQL (.sql)')}
             </button>
           </div>
         </div>
@@ -997,21 +1075,27 @@ export const SettingsPage: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold">
                   {userForm.isSelfProfile
-                    ? 'Edit Profil & Kata Sandi'
+                    ? tr('Edit Profil & Kata Sandi', 'Edit Profile & Password')
                     : userForm.id
-                    ? 'Edit Akun Pengguna & Penyesuaian Re-organisasi'
-                    : 'Tambah Pengguna Baru'}
+                    ? tr('Edit Akun Pengguna & Penyesuaian Re-organisasi', 'Edit User Account & Reorganization')
+                    : tr('Tambah Pengguna Baru', 'Add New User')}
                 </h3>
                 <p className="text-[11px] text-neutral-500">
                   {userForm.id
-                    ? 'Perbarui identitas, jabatan, seksi, hak akses, atau kata sandi akun ini.'
-                    : 'Tambahkan akun baru untuk tim Departemen Human Resources.'}
+                    ? tr(
+                        'Perbarui identitas, jabatan, seksi, hak akses, atau kata sandi akun ini.',
+                        'Update identity, job title, section, access role, or password for this account.'
+                      )
+                    : tr(
+                        'Tambahkan akun baru untuk tim Departemen Human Resources.',
+                        'Add a new account for the Human Resources Department team.'
+                      )}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setUserForm(null)}
-                className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1019,7 +1103,7 @@ export const SettingsPage: React.FC = () => {
 
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1">Nama Lengkap *</label>
+                <label className="block font-semibold mb-1">{tr('Nama Lengkap *', 'Full Name *')}</label>
                 <input
                   type="text"
                   required
@@ -1039,25 +1123,25 @@ export const SettingsPage: React.FC = () => {
                         : prev
                     );
                   }}
-                  placeholder="Contoh: Mahmud Nurdiansyah"
+                  placeholder={tr('Contoh: Mahmud Nurdiansyah', 'Example: Mahmud Nurdiansyah')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Username Login *</label>
+                <label className="block font-semibold mb-1">{tr('Username Login *', 'Login Username *')}</label>
                 <input
                   type="text"
                   required
                   value={userForm.username}
                   onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-                  placeholder="Contoh: mahmud"
+                  placeholder={tr('Contoh: mahmud', 'Example: mahmud')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114] font-mono-num"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Email Perusahaan *</label>
+                <label className="block font-semibold mb-1">{tr('Email Perusahaan *', 'Company Email *')}</label>
                 <input
                   type="email"
                   required
@@ -1069,26 +1153,26 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Jabatan *</label>
+                <label className="block font-semibold mb-1">{tr('Jabatan *', 'Job Title *')}</label>
                 <input
                   type="text"
                   required
                   value={userForm.jabatan}
                   onChange={(e) => setUserForm({ ...userForm, jabatan: e.target.value })}
-                  placeholder="Contoh: Sect. Manager HR Development"
+                  placeholder={tr('Contoh: Sect. Manager HR Development', 'Example: Sect. Manager HR Development')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Seksi / Bagian *</label>
+                <label className="block font-semibold mb-1">{tr('Seksi / Bagian *', 'Section / Unit *')}</label>
                 <input
                   type="text"
                   list="hr-section-suggestions"
                   required
                   value={userForm.seksi}
                   onChange={(e) => setUserForm({ ...userForm, seksi: e.target.value })}
-                  placeholder="Pilih atau ketik seksi baru"
+                  placeholder={tr('Pilih atau ketik seksi baru', 'Select or type a section')}
                   className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                 />
                 <datalist id="hr-section-suggestions">
@@ -1099,7 +1183,7 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Peran Akses</label>
+                <label className="block font-semibold mb-1">{tr('Peran Akses', 'Access Role')}</label>
                 <select
                   disabled={Boolean(userForm.isSelfProfile && !isSuperAdmin)}
                   value={userForm.role}
@@ -1114,7 +1198,9 @@ export const SettingsPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Inisial Avatar (2 Huruf)</label>
+                <label className="block font-semibold mb-1">
+                  {tr('Inisial Avatar (2 Huruf)', 'Avatar Initials (2 Letters)')}
+                </label>
                 <input
                   type="text"
                   maxLength={2}
@@ -1130,8 +1216,11 @@ export const SettingsPage: React.FC = () => {
               <div className="sm:col-span-2">
                 <label className="block font-semibold mb-1">
                   {userForm.id
-                    ? 'Kata Sandi Baru (kosongkan jika tidak ingin mengganti)'
-                    : 'Kata Sandi *'}
+                    ? tr(
+                        'Kata Sandi Baru (kosongkan jika tidak ingin mengganti)',
+                        'New Password (leave blank to keep current password)'
+                      )
+                    : tr('Kata Sandi *', 'Password *')}
                 </label>
                 <div className="relative">
                   <input
@@ -1141,15 +1230,15 @@ export const SettingsPage: React.FC = () => {
                     onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
                     placeholder={
                       userForm.id
-                        ? 'Biarkan kosong untuk mempertahankan kata sandi saat ini'
-                        : 'Masukkan kata sandi awal'
+                        ? tr('Biarkan kosong untuk mempertahankan kata sandi saat ini', 'Leave empty to keep current password')
+                        : tr('Masukkan kata sandi awal', 'Enter initial password')
                     }
                     className="w-full px-3 pr-10 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -1158,23 +1247,25 @@ export const SettingsPage: React.FC = () => {
 
               {/* Tanda Tangan Tersimpan */}
               <div className="sm:col-span-2">
-                <label className="block font-semibold mb-1.5">Tanda Tangan Digital Tersimpan</label>
+                <label className="block font-semibold mb-1.5">
+                  {tr('Tanda Tangan Digital Tersimpan', 'Saved Digital Signature')}
+                </label>
                 <div className="flex items-center gap-3 p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114]">
                   <div className="w-28 h-14 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white flex items-center justify-center overflow-hidden shrink-0 p-1">
                     {userForm.savedSignatureDataUrl ? (
                       <img
                         src={userForm.savedSignatureDataUrl}
-                        alt="Tanda tangan"
+                        alt={tr('Tanda tangan', 'Signature')}
                         className="max-h-12 max-w-full object-contain"
                       />
                     ) : (
-                      <span className="text-[10px] text-neutral-400">Belum ada</span>
+                      <span className="text-[10px] text-neutral-400">{tr('Belum ada', 'None yet')}</span>
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] font-semibold cursor-pointer hover:border-[#E60012] transition">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] font-semibold cursor-pointer hover:border-theme-primary transition">
                       <Upload className="w-3.5 h-3.5" />
-                      Unggah PNG/JPG
+                      {tr('Unggah PNG/JPG', 'Upload PNG/JPG')}
                       <input
                         type="file"
                         accept="image/*"
@@ -1188,10 +1279,10 @@ export const SettingsPage: React.FC = () => {
                         onClick={() =>
                           setUserForm({ ...userForm, savedSignatureDataUrl: undefined })
                         }
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 font-semibold"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900/50 text-red-600 font-semibold cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        Hapus
+                        {tr('Hapus', 'Delete')}
                       </button>
                     )}
                   </div>
@@ -1201,9 +1292,12 @@ export const SettingsPage: React.FC = () => {
               {!userForm.isSelfProfile && (
                 <div className="sm:col-span-2 flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-[#0F1114]">
                   <div>
-                    <div className="font-semibold">Status Akun Aktif</div>
+                    <div className="font-semibold">{tr('Status Akun Aktif', 'Active Account Status')}</div>
                     <div className="text-[11px] text-neutral-500">
-                      Akun nonaktif tidak dapat masuk ke sistem namun riwayat audit &amp; laporan lama tetap terjaga.
+                      {tr(
+                        'Akun nonaktif tidak dapat masuk ke sistem namun riwayat audit & laporan lama tetap terjaga.',
+                        'Inactive accounts cannot sign in, while historical audit trails and finalized reports remain intact.'
+                      )}
                     </div>
                   </div>
                   <input
@@ -1211,7 +1305,7 @@ export const SettingsPage: React.FC = () => {
                     checked={userForm.active}
                     disabled={userForm.id === user.id}
                     onChange={(e) => setUserForm({ ...userForm, active: e.target.checked })}
-                    className="w-4 h-4 accent-[#E60012]"
+                    className="w-4 h-4 accent-current text-theme-primary"
                   />
                 </div>
               )}
@@ -1222,14 +1316,20 @@ export const SettingsPage: React.FC = () => {
                     type="checkbox"
                     checked={userForm.syncReorg}
                     onChange={(e) => setUserForm({ ...userForm, syncReorg: e.target.checked })}
-                    className="w-4 h-4 mt-0.5 accent-[#E60012] shrink-0"
+                    className="w-4 h-4 mt-0.5 accent-current text-theme-primary shrink-0"
                   />
                   <div>
                     <div className="font-semibold text-amber-900 dark:text-amber-200">
-                      Sinkronkan Perubahan Re-organisasi ke Template &amp; Laporan Draft
+                      {tr(
+                        'Sinkronkan Perubahan Re-organisasi ke Template & Laporan Draft',
+                        'Sync Reorganization Changes to Templates & Draft Reports'
+                      )}
                     </div>
                     <div className="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-0.5">
-                      Otomatis memperbarui Nama &amp; Jabatan baru pada seluruh Template Tanda Tangan serta slot tertunda di Laporan Draft. Laporan Final yang sudah ditandatangani tetap utuh untuk integritas audit.
+                      {tr(
+                        'Otomatis memperbarui Nama & Jabatan baru pada seluruh Template Tanda Tangan serta slot tertunda di Laporan Draft. Laporan Final yang sudah ditandatangani tetap utuh untuk integritas audit.',
+                        'Automatically updates the new Name & Job Title across all Signature Templates and pending slots in Draft Reports. Signed Final reports stay unchanged for audit integrity.'
+                      )}
                     </div>
                   </div>
                 </label>
@@ -1240,15 +1340,15 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setUserForm(null)}
-                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold"
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold cursor-pointer"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white font-semibold"
+                className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white font-semibold cursor-pointer"
               >
-                {userForm.id ? 'Simpan Perubahan' : 'Simpan Pengguna'}
+                {userForm.id ? tr('Simpan Perubahan', 'Save Changes') : tr('Simpan Pengguna', 'Save User')}
               </button>
             </div>
           </form>
@@ -1264,39 +1364,50 @@ export const SettingsPage: React.FC = () => {
           >
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-[#E60012]" />
-                Serah Terima Jabatan (Re-organisasi)
+                <ArrowRightLeft className="w-4 h-4 text-theme-primary" />
+                {tr('Serah Terima Jabatan (Re-organisasi)', 'Position Handover (Reorganization)')}
               </h3>
               <button
                 type="button"
                 onClick={() => setHandoverFromUser(null)}
-                className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-[#0F1114] border border-neutral-200 dark:border-neutral-800 space-y-1">
-              <div className="text-[11px] text-neutral-500">Pejabat / PIC Sebelumnya</div>
+              <div className="text-[11px] text-neutral-500">
+                {tr('Pejabat / PIC Sebelumnya', 'Previous Officer / PIC')}
+              </div>
               <div className="font-bold text-sm">{handoverFromUser.name}</div>
               <div className="text-neutral-500">
                 {handoverFromUser.jabatan} · {handoverFromUser.seksi}
               </div>
               <div className="text-[11px] text-amber-700 dark:text-amber-400 pt-1">
-                Terkait pada <strong>{handoverImpact.templates} Template Tanda Tangan</strong> &amp;{' '}
-                <strong>{handoverImpact.draftReports} Laporan Draft (Pending)</strong>.
+                {tr('Terkait pada', 'Linked to')}{' '}
+                <strong>
+                  {handoverImpact.templates} {tr('Template Tanda Tangan', 'Signature Templates')}
+                </strong>{' '}
+                &amp;{' '}
+                <strong>
+                  {handoverImpact.draftReports} {tr('Laporan Draft (Pending)', 'Draft Reports (Pending)')}
+                </strong>
+                .
               </div>
             </div>
 
             <div>
-              <label className="block font-semibold mb-1.5">Alihkan Slot Persetujuan ke Akun Pengganti *</label>
+              <label className="block font-semibold mb-1.5">
+                {tr('Alihkan Slot Persetujuan ke Akun Pengganti *', 'Reassign Approval Slots to Successor Account *')}
+              </label>
               <select
                 required
                 value={handoverToUserId}
                 onChange={(e) => setHandoverToUserId(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114]"
               >
-                <option value="">-- Pilih Akun Pengganti Aktif --</option>
+                <option value="">{tr('-- Pilih Akun Pengganti Aktif --', '-- Select Active Successor --')}</option>
                 {store.users
                   .filter((u) => u.id !== handoverFromUser.id && u.active)
                   .map((cand) => (
@@ -1313,10 +1424,15 @@ export const SettingsPage: React.FC = () => {
                   type="checkbox"
                   checked={handoverDeactivateOld}
                   onChange={(e) => setHandoverDeactivateOld(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 accent-[#E60012]"
+                  className="w-4 h-4 mt-0.5 accent-current text-theme-primary"
                 />
                 <span>
-                  Sekaligus nonaktifkan akun <strong>{handoverFromUser.name}</strong> setelah serah terima selesai (riwayat audit &amp; laporan Final tetap aman).
+                  {tr('Sekaligus nonaktifkan akun', 'Also deactivate account')}{' '}
+                  <strong>{handoverFromUser.name}</strong>{' '}
+                  {tr(
+                    'setelah serah terima selesai (riwayat audit & laporan Final tetap aman).',
+                    'after handover completes (audit trail & Final reports remain safe).'
+                  )}
                 </span>
               </label>
             )}
@@ -1325,16 +1441,16 @@ export const SettingsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setHandoverFromUser(null)}
-                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold"
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold cursor-pointer"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="submit"
                 disabled={!handoverToUserId}
-                className="px-4 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] disabled:opacity-50 text-white font-semibold"
+                className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover disabled:opacity-50 text-white font-semibold cursor-pointer"
               >
-                Jalankan Serah Terima
+                {tr('Jalankan Serah Terima', 'Execute Handover')}
               </button>
             </div>
           </form>
@@ -1345,24 +1461,31 @@ export const SettingsPage: React.FC = () => {
       {deleteTargetUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4 text-xs shadow-2xl">
-            <h3 className="text-base font-bold text-red-600">Hapus Akun Pengguna?</h3>
+            <h3 className="text-base font-bold text-red-600">
+              {tr('Hapus Akun Pengguna?', 'Delete User Account?')}
+            </h3>
             <p className="text-neutral-600 dark:text-neutral-300 leading-relaxed">
-              Anda yakin ingin menghapus akun <strong>{deleteTargetUser.name}</strong> ({deleteTargetUser.username})? Jika akun ini masih terhubung dengan template tanda tangan, gunakan fitur <strong>Serah Terima Jabatan</strong> atau cukup nonaktifkan akun.
+              {tr('Anda yakin ingin menghapus akun', 'Are you sure you want to delete account')}{' '}
+              <strong>{deleteTargetUser.name}</strong> ({deleteTargetUser.username})?{' '}
+              {tr(
+                'Jika akun ini masih terhubung dengan template tanda tangan, gunakan fitur Serah Terima Jabatan atau cukup nonaktifkan akun.',
+                'If this account is still linked to signature templates, use Position Handover or simply deactivate the account.'
+              )}
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setDeleteTargetUser(null)}
-                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold"
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 font-semibold cursor-pointer"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDeleteUser}
-                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold"
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold cursor-pointer"
               >
-                Hapus Akun
+                {tr('Hapus Akun', 'Delete Account')}
               </button>
             </div>
           </div>

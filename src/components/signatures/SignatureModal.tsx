@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Eraser, Eye, EyeOff, KeyRound, PenTool, Upload, UserCheck, X } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 import type { SignatureSlot, User } from '../../types';
 
 interface SignatureModalProps {
@@ -23,6 +24,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
   verifyPassword,
   onConfirmSign,
 }) => {
+  const { tr } = useLanguage();
   const [mode, setMode] = useState<SignMode>('DRAW');
   const [inkColor, setInkColor] = useState('#111827');
   const [strokeWidth, setStrokeWidth] = useState(2.5);
@@ -149,26 +151,46 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
     setError('');
 
     if (!verifyPassword(password)) {
-      setError('Kata sandi konfirmasi tidak sesuai. Gunakan kata sandi akun Anda (demo: demo123).');
+      setError(
+        tr(
+          'Kata sandi konfirmasi tidak sesuai. Gunakan kata sandi akun Anda (demo: demo123).',
+          'Confirmation password does not match. Enter your account password (demo: demo123).'
+        )
+      );
       return;
     }
 
     let finalSignature = '';
     if (mode === 'DRAW') {
       if (!hasDrawn || !canvasRef.current) {
-        setError('Silakan gambar tanda tangan Anda di kanvas terlebih dahulu.');
+        setError(
+          tr(
+            'Silakan gambar tanda tangan Anda di kanvas terlebih dahulu.',
+            'Please draw your signature on the canvas first.'
+          )
+        );
         return;
       }
       finalSignature = canvasRef.current.toDataURL('image/png');
     } else if (mode === 'UPLOAD') {
       if (!uploadedDataUrl) {
-        setError('Silakan unggah gambar tanda tangan terlebih dahulu.');
+        setError(
+          tr(
+            'Silakan unggah gambar tanda tangan terlebih dahulu.',
+            'Please upload a signature image first.'
+          )
+        );
         return;
       }
       finalSignature = uploadedDataUrl;
     } else {
       if (!currentUser.savedSignatureDataUrl) {
-        setError('Profil Anda belum memiliki tanda tangan tersimpan.');
+        setError(
+          tr(
+            'Profil Anda belum memiliki tanda tangan tersimpan.',
+            'Your profile does not have a saved signature yet.'
+          )
+        );
         return;
       }
       finalSignature = currentUser.savedSignatureDataUrl;
@@ -183,7 +205,7 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">
           <div>
             <h3 className="text-lg font-bold text-[#1F2328] dark:text-neutral-100">
-              Bubuhkan Tanda Tangan Digital
+              {tr('Bubuhkan Tanda Tangan Digital', 'Apply Digital Signature')}
             </h3>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
               {groupLabel.replace(',', '')} · {slot.name} ({slot.jabatan})
@@ -192,8 +214,8 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-            aria-label="Tutup modal"
+            className="p-2 rounded-xl text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+            aria-label={tr('Tutup modal', 'Close modal')}
           >
             <X className="w-5 h-5" />
           </button>
@@ -205,38 +227,38 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
             <button
               type="button"
               onClick={() => setMode('DRAW')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                 mode === 'DRAW'
                   ? 'bg-white dark:bg-[#1F2328] text-[#1F2328] dark:text-white shadow-sm'
                   : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
               }`}
             >
               <PenTool className="w-3.5 h-3.5" />
-              Gambar Kanvas
+              {tr('Gambar Kanvas', 'Draw Canvas')}
             </button>
             <button
               type="button"
               onClick={() => setMode('UPLOAD')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                 mode === 'UPLOAD'
                   ? 'bg-white dark:bg-[#1F2328] text-[#1F2328] dark:text-white shadow-sm'
                   : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
               }`}
             >
               <Upload className="w-3.5 h-3.5" />
-              Unggah Gambar
+              {tr('Unggah Gambar', 'Upload Image')}
             </button>
             <button
               type="button"
               onClick={() => setMode('SAVED')}
-              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+              className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
                 mode === 'SAVED'
                   ? 'bg-white dark:bg-[#1F2328] text-[#1F2328] dark:text-white shadow-sm'
                   : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
               }`}
             >
               <UserCheck className="w-3.5 h-3.5" />
-              TTD Tersimpan
+              {tr('TTD Tersimpan', 'Saved Signature')}
             </button>
           </div>
 
@@ -246,21 +268,21 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
-                    Warna Tinta:
+                    {tr('Warna Tinta:', 'Ink Color:')}
                   </span>
                   {[
-                    { color: '#111827', label: 'Hitam' },
-                    { color: '#1E3A8A', label: 'Biru Tua' },
-                    { color: '#991B1B', label: 'Merah Tua' },
+                    { color: '#111827', label: tr('Hitam', 'Black') },
+                    { color: '#1E3A8A', label: tr('Biru Tua', 'Navy Blue') },
+                    { color: '#991B1B', label: tr('Merah Tua', 'Dark Red') },
                   ].map((c) => (
                     <button
                       key={c.color}
                       type="button"
                       onClick={() => setInkColor(c.color)}
                       title={c.label}
-                      className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                      className={`w-6 h-6 rounded-full border-2 transition-transform cursor-pointer ${
                         inkColor === c.color
-                          ? 'border-[#E60012] scale-110'
+                          ? 'border-theme-primary scale-110'
                           : 'border-neutral-300 dark:border-neutral-600'
                       }`}
                       style={{ backgroundColor: c.color }}
@@ -269,29 +291,38 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
-                    Ketebalan:
+                    {tr('Ketebalan:', 'Thickness:')}
                   </span>
                   {[1.5, 2.5, 4].map((w) => (
                     <button
                       key={w}
                       type="button"
                       onClick={() => setStrokeWidth(w)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border cursor-pointer ${
                         strokeWidth === w
-                          ? 'border-[#E60012] bg-[#E60012]/10 text-[#E60012]'
+                          ? 'border-theme-primary text-theme-primary'
                           : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400'
                       }`}
+                      style={
+                        strokeWidth === w
+                          ? { backgroundColor: 'rgba(var(--brand-primary-rgb), 0.1)' }
+                          : undefined
+                      }
                     >
-                      {w === 1.5 ? 'Tipis' : w === 2.5 ? 'Sedang' : 'Tebal'}
+                      {w === 1.5
+                        ? tr('Tipis', 'Thin')
+                        : w === 2.5
+                        ? tr('Sedang', 'Medium')
+                        : tr('Tebal', 'Bold')}
                     </button>
                   ))}
                   <button
                     type="button"
                     onClick={clearCanvas}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
                   >
                     <Eraser className="w-3.5 h-3.5" />
-                    Bersihkan
+                    {tr('Bersihkan', 'Clear')}
                   </button>
                 </div>
               </div>
@@ -308,7 +339,10 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
                 />
               </div>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Gunakan mouse atau jari pada layar sentuh untuk menggambar tanda tangan di area putih di atas.
+                {tr(
+                  'Gunakan mouse atau jari pada layar sentuh untuk menggambar tanda tangan di area putih di atas.',
+                  'Use your mouse or finger on a touchscreen to draw your signature in the white box above.'
+                )}
               </p>
             </div>
           )}
@@ -321,26 +355,29 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
                     type="checkbox"
                     checked={removeBg}
                     onChange={(e) => setRemoveBg(e.target.checked)}
-                    className="rounded border-neutral-300 text-[#E60012] focus:ring-[#E60012]"
+                    className="rounded border-neutral-300"
                   />
-                  Hapus latar putih otomatis (transparan)
+                  {tr(
+                    'Hapus latar putih otomatis (transparan)',
+                    'Automatically remove white background (transparent)'
+                  )}
                 </label>
               </div>
-              <label className="flex flex-col items-center justify-center h-40 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/40 cursor-pointer hover:border-[#E60012] transition-colors p-4">
+              <label className="flex flex-col items-center justify-center h-40 rounded-xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/40 cursor-pointer hover:border-theme-primary transition-colors p-4">
                 {uploadedDataUrl ? (
                   <img
                     src={uploadedDataUrl}
-                    alt="Pratinjau tanda tangan unggahan"
+                    alt={tr('Pratinjau tanda tangan unggahan', 'Uploaded signature preview')}
                     className="max-h-28 object-contain"
                   />
                 ) : (
                   <>
                     <Upload className="w-7 h-7 text-neutral-400 mb-2" />
                     <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                      Pilih berkas PNG / JPG tanda tangan
+                      {tr('Pilih berkas PNG / JPG tanda tangan', 'Choose a PNG / JPG signature file')}
                     </span>
                     <span className="text-[11px] text-neutral-500 mt-1">
-                      Klik di sini untuk memilih gambar
+                      {tr('Klik di sini untuk memilih gambar', 'Click here to browse images')}
                     </span>
                   </>
                 )}
@@ -360,16 +397,19 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
                 <>
                   <img
                     src={currentUser.savedSignatureDataUrl}
-                    alt="Tanda tangan tersimpan"
+                    alt={tr('Tanda tangan tersimpan', 'Saved signature')}
                     className="max-h-24 object-contain"
                   />
                   <span className="text-xs text-neutral-500 mt-3">
-                    Tanda tangan tersimpan milik {currentUser.name}
+                    {tr('Tanda tangan tersimpan milik', 'Saved signature of')} {currentUser.name}
                   </span>
                 </>
               ) : (
-                <p className="text-xs text-neutral-500">
-                  Belum ada tanda tangan tersimpan di profil Anda. Silakan gambar atau unggah terlebih dahulu.
+                <p className="text-xs text-neutral-500 text-center">
+                  {tr(
+                    'Belum ada tanda tangan tersimpan di profil Anda. Silakan gambar atau unggah terlebih dahulu.',
+                    'No saved signature in your profile yet. Please draw or upload one first.'
+                  )}
                 </p>
               )}
             </div>
@@ -381,16 +421,19 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
                 type="checkbox"
                 checked={saveToProfile}
                 onChange={(e) => setSaveToProfile(e.target.checked)}
-                className="rounded border-neutral-300 text-[#E60012] focus:ring-[#E60012]"
+                className="rounded border-neutral-300"
               />
-              Simpan tanda tangan ini ke profil saya untuk penggunaan berikutnya
+              {tr(
+                'Simpan tanda tangan ini ke profil saya untuk penggunaan berikutnya',
+                'Save this signature to my profile for future use'
+              )}
             </label>
           )}
 
           {/* Password Verification */}
           <div>
             <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">
-              Konfirmasi Kata Sandi Akun ({currentUser.username})
+              {tr('Konfirmasi Kata Sandi Akun', 'Confirm Account Password')} ({currentUser.username})
             </label>
             <div className="relative">
               <KeyRound className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -398,15 +441,15 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
                 type={showPwd ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Masukkan kata sandi (demo: demo123)"
-                className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-sm focus:outline-none focus:ring-2 focus:ring-[#E60012]/30 focus:border-[#E60012]"
+                placeholder={tr('Masukkan kata sandi (demo: demo123)', 'Enter password (demo: demo123)')}
+                className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-sm focus:outline-none focus:border-theme-primary"
                 required
               />
               <button
                 type="button"
                 onClick={() => setShowPwd((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
-                aria-label="Tampilkan atau sembunyikan kata sandi"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                aria-label={tr('Tampilkan atau sembunyikan kata sandi', 'Show or hide password')}
               >
                 {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -423,16 +466,16 @@ export const SignatureModal: React.FC<SignatureModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+              className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
             >
-              Batal
+              {tr('Batal', 'Cancel')}
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-sm font-semibold transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-theme-primary text-white text-sm font-semibold transition-colors shadow-sm cursor-pointer"
             >
               <Check className="w-4 h-4" />
-              Sahkan &amp; Tanda Tangani
+              {tr('Sahkan & Tanda Tangani', 'Approve & Sign')}
             </button>
           </div>
         </form>

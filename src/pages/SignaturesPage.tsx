@@ -15,6 +15,7 @@ import {
 import { ReportStepper } from '../components/common/ReportStepper';
 import { SignatureModal } from '../components/signatures/SignatureModal';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
 import { useToast } from '../context/ToastContext';
 import type { ReportType, SignatureSlot, SignatureTemplate } from '../types';
@@ -22,6 +23,7 @@ import { formatDateTimeIndo } from '../utils/format';
 
 export const SignaturesPage: React.FC = () => {
   const { user, isSuperAdmin, verifyPassword } = useAuth();
+  const { language, tr } = useLanguage();
   const {
     store,
     signReportSlot,
@@ -63,7 +65,7 @@ export const SignaturesPage: React.FC = () => {
   const handleCreateNewTemplate = () => {
     const fresh: SignatureTemplate = {
       id: `tpl-${Date.now()}`,
-      name: 'Template Kustom Baru',
+      name: tr('Template Kustom Baru', 'New Custom Template'),
       jenis: 'OFFICE_SUPPLIES',
       isDefault: false,
       groups: JSON.parse(JSON.stringify(store.templates[0].groups)),
@@ -136,9 +138,14 @@ export const SignaturesPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-extrabold font-display">Tanda Tangan Digital &amp; Template</h2>
+          <h2 className="text-xl font-extrabold font-display">
+            {tr('Tanda Tangan Digital & Template', 'Digital Signatures & Templates')}
+          </h2>
           <p className="text-xs text-neutral-500">
-            Kelola antrean pengesahan berjenjang (Dilaporkan · Dicheck · Mengetahui) serta konfigurasi slot tanda tangan.
+            {tr(
+              'Kelola antrean pengesahan berjenjang (Dilaporkan · Dicheck · Mengetahui) serta konfigurasi slot tanda tangan.',
+              'Manage tiered approval queues (Reported · Checked · Acknowledged) and configure signature slots.'
+            )}
           </p>
         </div>
 
@@ -150,7 +157,7 @@ export const SignaturesPage: React.FC = () => {
               tab === 'QUEUE' ? 'bg-white dark:bg-[#171A1F] shadow-sm' : 'text-neutral-500'
             }`}
           >
-            Antrean &amp; Alur ({pendingMyQueue.length})
+            {tr('Antrean & Alur', 'Queue & Workflow')} ({pendingMyQueue.length})
           </button>
           {isSuperAdmin && (
             <button
@@ -161,7 +168,7 @@ export const SignaturesPage: React.FC = () => {
               }`}
             >
               <Settings2 className="w-3.5 h-3.5" />
-              Template Tanda Tangan
+              {tr('Template Tanda Tangan', 'Signature Templates')}
             </button>
           )}
         </div>
@@ -172,12 +179,15 @@ export const SignaturesPage: React.FC = () => {
           {/* Actionable Queue for Logged-in User */}
           <div className="p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-4">
             <h3 className="text-sm font-bold flex items-center gap-2">
-              <PenTool className="w-4 h-4 text-[#E60012]" />
-              Menunggu Tanda Tangan Saya ({pendingMyQueue.length})
+              <PenTool className="w-4 h-4 text-theme-primary" />
+              {tr('Menunggu Tanda Tangan Saya', 'Awaiting My Signature')} ({pendingMyQueue.length})
             </h3>
             {pendingMyQueue.length === 0 ? (
               <p className="text-xs text-neutral-500">
-                Tidak ada dokumen yang menunggu tanda tangan Anda pada tahap aktif saat ini.
+                {tr(
+                  'Tidak ada dokumen yang menunggu tanda tangan Anda pada tahap aktif saat ini.',
+                  'There are no documents awaiting your signature at the current stage.'
+                )}
               </p>
             ) : (
               <div className="grid sm:grid-cols-2 gap-3">
@@ -202,9 +212,9 @@ export const SignaturesPage: React.FC = () => {
                           slot: item.slot,
                         })
                       }
-                      className="px-3.5 py-2 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold shrink-0"
+                      className="px-3.5 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold shrink-0"
                     >
-                      Tanda Tangani
+                      {tr('Tanda Tangani', 'Sign Now')}
                     </button>
                   </div>
                 ))}
@@ -222,7 +232,7 @@ export const SignaturesPage: React.FC = () => {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-xs font-mono-num text-neutral-500">
-                      {rep.documentId} · Periode {rep.periodLabel}
+                      {rep.documentId} · {tr('Periode', 'Period')} {rep.periodLabel}
                     </div>
                     <h4 className="text-sm font-bold mt-0.5">{rep.title}</h4>
                   </div>
@@ -234,12 +244,18 @@ export const SignaturesPage: React.FC = () => {
                           type="button"
                           onClick={() => {
                             sendReminderNotification(rep.id, user);
-                            toast('Pengingat terkirim ke penanda tangan yang masih pending', 'success');
+                            toast(
+                              tr(
+                                'Pengingat terkirim ke penanda tangan yang masih pending',
+                                'Reminder sent to pending signers'
+                              ),
+                              'success'
+                            );
                           }}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800"
                         >
                           <Bell className="w-3.5 h-3.5 text-[#C9A24B]" />
-                          Kirim Pengingat
+                          {tr('Kirim Pengingat', 'Send Reminder')}
                         </button>
                         {(user.role === 'SECTION_MANAGER' ||
                           user.role === 'DEPT_MANAGER' ||
@@ -254,7 +270,7 @@ export const SignaturesPage: React.FC = () => {
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-50"
                             >
                               <XCircle className="w-3.5 h-3.5" />
-                              Tolak ke Draft
+                              {tr('Tolak ke Draft', 'Return to Draft')}
                             </button>
                           )}
                       </>
@@ -265,7 +281,10 @@ export const SignaturesPage: React.FC = () => {
                         onChange={(e) => {
                           if (!user) return;
                           applyTemplateToReport(rep.id, e.target.value, user);
-                          toast('Template tanda tangan diterapkan ke laporan ini', 'info');
+                          toast(
+                            tr('Template tanda tangan diterapkan ke laporan ini', 'Signature template applied to this report'),
+                            'info'
+                          );
                         }}
                         className="px-2.5 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
                       >
@@ -301,7 +320,7 @@ export const SignaturesPage: React.FC = () => {
                             <div className="text-[11px] text-neutral-500 truncate">{s.jabatan}</div>
                             {s.signedAt && (
                               <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-mono-num">
-                                {formatDateTimeIndo(s.signedAt)}
+                                {formatDateTimeIndo(s.signedAt, language)}
                               </div>
                             )}
                           </div>
@@ -318,12 +337,14 @@ export const SignaturesPage: React.FC = () => {
                                   slot: s,
                                 })
                               }
-                              className="px-2.5 py-1 rounded-lg bg-[#E60012] text-white text-[11px] font-semibold shrink-0"
+                              className="px-2.5 py-1 rounded-lg bg-theme-primary bg-theme-primary-hover text-white text-[11px] font-semibold shrink-0"
                             >
-                              Sign
+                              {tr('TTD', 'Sign')}
                             </button>
                           ) : (
-                            <span className="text-[11px] text-neutral-400 shrink-0">Pending</span>
+                            <span className="text-[11px] text-neutral-400 shrink-0">
+                              {tr('Menunggu', 'Pending')}
+                            </span>
                           )}
                         </div>
                       ))}
@@ -339,14 +360,14 @@ export const SignaturesPage: React.FC = () => {
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
           <div className="xl:col-span-4 min-w-0 p-5 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold">Preset Template</h3>
+              <h3 className="text-sm font-bold">{tr('Preset Template', 'Template Presets')}</h3>
               <button
                 type="button"
                 onClick={handleCreateNewTemplate}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#E60012] text-white text-xs font-semibold"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Baru
+                {tr('Baru', 'New')}
               </button>
             </div>
             <div className="space-y-2">
@@ -357,13 +378,13 @@ export const SignaturesPage: React.FC = () => {
                   onClick={() => selectTemplateForEdit(tpl.id)}
                   className={`w-full text-left p-3 rounded-xl border text-xs transition-colors ${
                     draftTpl.id === tpl.id
-                      ? 'border-[#E60012] bg-[#E60012]/5'
+                      ? 'border-theme-primary bg-theme-primary-soft'
                       : 'border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/40'
                   }`}
                 >
                   <div className="font-bold">{tpl.name}</div>
                   <div className="text-[11px] text-neutral-500 mt-0.5">
-                    {tpl.jenis} {tpl.isDefault ? '· Bawaan' : ''}
+                    {tpl.jenis} {tpl.isDefault ? tr('· Bawaan', '· Default') : ''}
                   </div>
                 </button>
               ))}
@@ -373,7 +394,7 @@ export const SignaturesPage: React.FC = () => {
           <div className="xl:col-span-8 min-w-0 p-5 sm:p-6 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-5">
             <div className="grid sm:grid-cols-3 gap-3 text-xs">
               <div>
-                <label className="block font-semibold mb-1">Nama Template</label>
+                <label className="block font-semibold mb-1">{tr('Nama Template', 'Template Name')}</label>
                 <input
                   type="text"
                   value={draftTpl.name}
@@ -382,7 +403,7 @@ export const SignaturesPage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block font-semibold mb-1">Jenis Laporan</label>
+                <label className="block font-semibold mb-1">{tr('Jenis Laporan', 'Report Type')}</label>
                 <select
                   value={draftTpl.jenis}
                   onChange={(e) => setDraftTpl({ ...draftTpl, jenis: e.target.value as ReportType })}
@@ -390,7 +411,7 @@ export const SignaturesPage: React.FC = () => {
                 >
                   <option value="OFFICE_SUPPLIES">Office Supplies</option>
                   <option value="OVERHEAD_GOODS">Overhead Goods</option>
-                  <option value="INVENTARIS_OVERHEAD">Inventaris Overhead</option>
+                  <option value="INVENTARIS_OVERHEAD">{tr('Inventaris Overhead', 'Overhead Inventory')}</option>
                 </select>
               </div>
               <div className="flex items-end pb-2">
@@ -400,7 +421,7 @@ export const SignaturesPage: React.FC = () => {
                     checked={draftTpl.isDefault}
                     onChange={(e) => setDraftTpl({ ...draftTpl, isDefault: e.target.checked })}
                   />
-                  Jadikan preset bawaan
+                  {tr('Jadikan preset bawaan', 'Set as default preset')}
                 </label>
               </div>
             </div>
@@ -413,7 +434,7 @@ export const SignaturesPage: React.FC = () => {
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#E60012]">{grp.stage}</span>
+                      <span className="text-xs font-bold text-theme-primary">{grp.stage}</span>
                       <input
                         type="text"
                         value={grp.label}
@@ -442,7 +463,7 @@ export const SignaturesPage: React.FC = () => {
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Tambah Slot
+                      {tr('Tambah Slot', 'Add Slot')}
                     </button>
                   </div>
 
@@ -457,7 +478,7 @@ export const SignaturesPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => moveSlot(gIdx, sIdx, -1)}
-                            aria-label="Naik"
+                            aria-label={tr('Naik', 'Move up')}
                             className="hover:text-neutral-700"
                           >
                             <ArrowUp className="w-3.5 h-3.5" />
@@ -465,7 +486,7 @@ export const SignaturesPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => moveSlot(gIdx, sIdx, 1)}
-                            aria-label="Turun"
+                            aria-label={tr('Turun', 'Move down')}
                             className="hover:text-neutral-700"
                           >
                             <ArrowDown className="w-3.5 h-3.5" />
@@ -480,7 +501,7 @@ export const SignaturesPage: React.FC = () => {
                               next.groups[gIdx].slots[sIdx].name = e.target.value;
                               setDraftTpl(next);
                             }}
-                            placeholder="Nama Tercetak"
+                            placeholder={tr('Nama Tercetak', 'Printed Name')}
                             className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-transparent"
                           />
                         </div>
@@ -493,7 +514,7 @@ export const SignaturesPage: React.FC = () => {
                               next.groups[gIdx].slots[sIdx].jabatan = e.target.value;
                               setDraftTpl(next);
                             }}
-                            placeholder="Jabatan"
+                            placeholder={tr('Jabatan', 'Job Title')}
                             className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-transparent"
                           />
                         </div>
@@ -541,12 +562,16 @@ export const SignaturesPage: React.FC = () => {
                 onClick={() => {
                   if (!user) return;
                   upsertSignatureTemplate(draftTpl, user);
-                  toast('Template tanda tangan disimpan', 'success', 'Perubahan tidak mengubah laporan Final lama.');
+                  toast(
+                    tr('Template tanda tangan disimpan', 'Signature template saved'),
+                    'success',
+                    tr('Perubahan tidak mengubah laporan Final lama.', 'Changes will not affect previously finalized reports.')
+                  );
                 }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E60012] hover:bg-[#C4000F] text-white text-xs font-semibold"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
               >
                 <Save className="w-4 h-4" />
-                Simpan Preset Template
+                {tr('Simpan Preset Template', 'Save Template Preset')}
               </button>
             </div>
           </div>
@@ -557,15 +582,21 @@ export const SignaturesPage: React.FC = () => {
       {rejectModal && user && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4">
-            <h3 className="text-base font-bold">Tolak &amp; Kembalikan ke Draft</h3>
+            <h3 className="text-base font-bold">
+              {tr('Tolak & Kembalikan ke Draft', 'Reject & Return to Draft')}
+            </h3>
             <p className="text-xs text-neutral-600 dark:text-neutral-400">
-              Menolak <strong>{rejectModal.title}</strong> akan mereset tanda tangan tahap berjalan dan mengembalikannya ke Draft.
+              {tr('Menolak', 'Rejecting')} <strong>{rejectModal.title}</strong>{' '}
+              {tr(
+                'akan mereset tanda tangan tahap berjalan dan mengembalikannya ke Draft.',
+                'will reset current-stage signatures and return the report to Draft.'
+              )}
             </p>
             <textarea
               rows={3}
               value={rejectNote}
               onChange={(e) => setRejectNote(e.target.value)}
-              placeholder="Tuliskan alasan penolakan / catatan revisi..."
+              placeholder={tr('Tuliskan alasan penolakan / catatan revisi...', 'Enter rejection reason / revision notes...')}
               className="w-full px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#0F1114] text-xs"
             />
             <div className="flex justify-end gap-2">
@@ -574,18 +605,18 @@ export const SignaturesPage: React.FC = () => {
                 onClick={() => setRejectModal(null)}
                 className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold"
               >
-                Batal
+                {tr('Batal', 'Cancel')}
               </button>
               <button
                 type="button"
                 onClick={() => {
                   rejectReport(rejectModal.reportId, rejectNote, user);
                   setRejectModal(null);
-                  toast('Laporan dikembalikan ke Draft', 'warning');
+                  toast(tr('Laporan dikembalikan ke Draft', 'Report returned to Draft'), 'warning');
                 }}
                 className="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-semibold"
               >
-                Kembalikan ke Draft
+                {tr('Kembalikan ke Draft', 'Return to Draft')}
               </button>
             </div>
           </div>
@@ -612,11 +643,11 @@ export const SignaturesPage: React.FC = () => {
               user
             );
             if (!res.ok) {
-              toast('Gagal menandatangani', 'error', res.error);
+              toast(tr('Gagal menandatangani', 'Signing failed'), 'error', res.error);
               return;
             }
             setSignModal(null);
-            toast('Tanda tangan digital berhasil dibubuhkan', 'success');
+            toast(tr('Tanda tangan digital berhasil dibubuhkan', 'Digital signature applied successfully'), 'success');
           }}
         />
       )}

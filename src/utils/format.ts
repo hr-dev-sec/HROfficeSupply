@@ -15,6 +15,21 @@ const MONTHS_ID = [
   'Desember',
 ];
 
+const MONTHS_EN = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
 const MONTHS_SHORT_ID = [
   'Jan',
   'Feb',
@@ -30,47 +45,62 @@ const MONTHS_SHORT_ID = [
   'Des',
 ];
 
+const MONTHS_SHORT_EN = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
 export function formatNumber(n: number): string {
   const safe = Number.isFinite(n) ? n : 0;
   return safe.toLocaleString('id-ID');
 }
 
-export function formatDateIndo(isoOrDate: string): string {
+export function formatDateIndo(isoOrDate: string, lang: 'id' | 'en' = 'id'): string {
   if (!isoOrDate) return '-';
   const d = new Date(isoOrDate);
   if (Number.isNaN(d.getTime())) return isoOrDate;
   const day = String(d.getDate()).padStart(2, '0');
-  const month = MONTHS_ID[d.getMonth()];
+  const month = (lang === 'en' ? MONTHS_EN : MONTHS_ID)[d.getMonth()];
   const year = d.getFullYear();
   return `${day} ${month} ${year}`;
 }
 
-export function formatDateTimeIndo(iso: string): string {
+export function formatDateTimeIndo(iso: string, lang: 'id' | 'en' = 'id'): string {
   if (!iso) return '-';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const day = String(d.getDate()).padStart(2, '0');
-  const month = MONTHS_SHORT_ID[d.getMonth()];
+  const month = (lang === 'en' ? MONTHS_SHORT_EN : MONTHS_SHORT_ID)[d.getMonth()];
   const year = d.getFullYear();
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   return `${day} ${month} ${year}, ${hh}:${mm}`;
 }
 
-export function formatPeriodShort(period: string): string {
+export function formatPeriodShort(period: string, lang: 'id' | 'en' = 'id'): string {
   // '2026-09' -> 'Sep-26'
   const [y, m] = period.split('-');
   const idx = Number(m) - 1;
   if (idx < 0 || idx > 11 || !y) return period;
-  return `${MONTHS_SHORT_ID[idx]}-${y.slice(-2)}`;
+  return `${(lang === 'en' ? MONTHS_SHORT_EN : MONTHS_SHORT_ID)[idx]}-${y.slice(-2)}`;
 }
 
-export function formatPeriodLong(period: string): string {
+export function formatPeriodLong(period: string, lang: 'id' | 'en' = 'id'): string {
   // '2026-09' -> 'September 2026'
   const [y, m] = period.split('-');
   const idx = Number(m) - 1;
   if (idx < 0 || idx > 11 || !y) return period;
-  return `${MONTHS_ID[idx]} ${y}`;
+  return `${(lang === 'en' ? MONTHS_EN : MONTHS_ID)[idx]} ${y}`;
 }
 
 export function getNextPeriod(period: string): string {
@@ -108,16 +138,16 @@ export function getRoleLabel(role: UserRole): string {
   }
 }
 
-export function getStageLabel(stage: WorkflowStage): string {
+export function getStageLabel(stage: WorkflowStage, lang: 'id' | 'en' = 'id'): string {
   switch (stage) {
     case 'DRAFT':
       return 'Draft';
     case 'DILAPORKAN':
-      return 'Dilaporkan';
+      return lang === 'en' ? 'Reported' : 'Dilaporkan';
     case 'DICHECK':
-      return 'Dicheck';
+      return lang === 'en' ? 'Checked' : 'Dicheck';
     case 'MENGETAHUI':
-      return 'Mengetahui';
+      return lang === 'en' ? 'Acknowledged' : 'Mengetahui';
     case 'FINAL':
       return 'Final';
   }
