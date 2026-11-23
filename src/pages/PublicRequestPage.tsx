@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
   ClipboardCheck,
+  ClipboardList,
   Clock,
   Minus,
   Package,
@@ -13,6 +14,7 @@ import {
   ShoppingBag,
   Trash2,
   UserCheck,
+  X,
   XCircle,
 } from 'lucide-react';
 import { AppearanceControls } from '../components/common/AppearanceControls';
@@ -57,9 +59,24 @@ export const PublicRequestPage: React.FC = () => {
   // Receipt after submit
   const [submittedRequest, setSubmittedRequest] = useState<ItemRequest | null>(null);
 
-  // Status tracker filter
+  // Status tracker popup & filter
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [statusSearch, setStatusSearch] = useState('');
   const [statusSection, setStatusSection] = useState<'ALL' | HrSection>('ALL');
+
+  useEffect(() => {
+    if (!statusModalOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setStatusModalOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [statusModalOpen]);
 
   const activeEmployees = useMemo(
     () =>
@@ -238,6 +255,23 @@ export const PublicRequestPage: React.FC = () => {
       .slice(0, 20);
   }, [statusSearch, statusSection, store.itemRequests]);
 
+  const statusSummary = useMemo(() => {
+    let pending = 0;
+    let approved = 0;
+    let rejected = 0;
+    for (const r of recentRequests) {
+      if (r.status === 'MENUNGGU') pending += 1;
+      else if (r.status === 'DISETUJUI') approved += 1;
+      else if (r.status === 'DITOLAK') rejected += 1;
+    }
+    return { pending, approved, rejected };
+  }, [recentRequests]);
+
+  const totalPendingRequests = useMemo(
+    () => store.itemRequests.filter((r) => r.status === 'MENUNGGU').length,
+    [store.itemRequests]
+  );
+
   const canSubmit = Boolean(selectedEmployee && isNikVerified && cart.length > 0);
 
   return (
@@ -269,9 +303,13 @@ export const PublicRequestPage: React.FC = () => {
               <a href="#form-pengambilan" className="text-theme-primary whitespace-nowrap shrink-0">
                 {tr('Form Pengambilan', 'Request Form')}
               </a>
-              <a href="#pantau-status" className="hover:text-theme-primary transition-colors whitespace-nowrap shrink-0">
+              <button
+                type="button"
+                onClick={() => setStatusModalOpen(true)}
+                className="hover:text-theme-primary transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
                 {tr('Pantau Status', 'Track Status')}
-              </a>
+              </button>
             </nav>
 
             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
@@ -317,16 +355,31 @@ export const PublicRequestPage: React.FC = () => {
               )}
             </p>
           </div>
-          <div className="text-xs text-neutral-500 dark:text-neutral-400 md:text-right">
-            <div className="font-semibold text-neutral-800 dark:text-neutral-200">
-              {tr('Alur Pengambilan Barang', 'Supply Request Flow')}
+          <div className="flex flex-col sm:flex-row md:flex-col items-start sm:items-center md:items-end justify-between gap-3 shrink-0">
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 md:text-right">
+              <div className="font-semibold text-neutral-800 dark:text-neutral-200">
+                {tr('Alur Pengambilan Barang', 'Supply Request Flow')}
+              </div>
+              <div>
+                {tr(
+                  '1. Pilih Nama & Verifikasi NIK · 2. Pilih Barang · 3. Approval PIC HR',
+                  '1. Select Name & Verify NIK · 2. Pick Items · 3. HR PIC Approval'
+                )}
+              </div>
             </div>
-            <div>
-              {tr(
-                '1. Pilih Nama & Verifikasi NIK · 2. Pilih Barang · 3. Approval PIC HR',
-                '1. Select Name & Verify NIK · 2. Pick Items · 3. HR PIC Approval'
+            <button
+              type="button"
+              onClick={() => setStatusModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#14171D] hover:border-theme-primary hover:text-theme-primary text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <ClipboardList className="w-4 h-4 text-theme-primary" />
+              <span>{tr('Pantau Status Pengambilan', 'Track Request Status')}</span>
+              {totalPendingRequests > 0 && (
+                <span className="font-mono-num text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                  ({totalPendingRequests})
+                </span>
               )}
-            </div>
+            </button>
           </div>
         </div>
 
@@ -356,13 +409,23 @@ export const PublicRequestPage: React.FC = () => {
                 )}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setSubmittedRequest(null)}
-              className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              {tr('Buat Pengambilan Baru', 'Create New Request')}
-            </button>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setStatusModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-emerald-600/40 bg-white dark:bg-[#14171D] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer"
+              >
+                <ClipboardList className="w-3.5 h-3.5" />
+                {tr('Pantau Status', 'Track Status')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSubmittedRequest(null)}
+                className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold whitespace-nowrap shrink-0 transition-colors cursor-pointer"
+              >
+                {tr('Buat Pengambilan Baru', 'Create New Request')}
+              </button>
+            </div>
           </div>
         )}
 
@@ -851,139 +914,330 @@ export const PublicRequestPage: React.FC = () => {
           </form>
         </div>
 
-        {/* Status Tracker Section */}
-        <section
-          id="pantau-status"
-          className="p-5 sm:p-6 rounded-2xl border border-neutral-200/90 dark:border-neutral-800 bg-white dark:bg-[#14171D] space-y-4"
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold font-display">
-                {tr(
-                  'Pantau Status Pengambilan Karyawan Dept. HR',
-                  'Track HR Employee Request Status'
-                )}
-              </h2>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                {tr(
-                  'Cek apakah permintaan Anda masih menunggu persetujuan PIC, sudah disetujui, atau ditolak.',
-                  'Check whether your request is pending PIC review, approved, or rejected.'
-                )}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={statusSearch}
-                  onChange={(e) => setStatusSearch(e.target.value)}
-                  placeholder={tr('Cari nama karyawan / barang...', 'Search employee / item...')}
-                  className="pl-8 pr-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50/70 dark:bg-[#0F1114] w-56 focus:outline-none focus:border-theme-primary"
-                />
-              </div>
-              <div className="inline-flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800/80">
-                {(['ALL', ...HR_SECTIONS] as const).map((sec) => (
-                  <button
-                    key={sec}
-                    type="button"
-                    onClick={() => setStatusSection(sec)}
-                    className={`px-2.5 py-1 rounded-lg font-semibold whitespace-nowrap transition cursor-pointer ${
-                      statusSection === sec
-                        ? 'bg-white dark:bg-[#1A1E26] text-neutral-900 dark:text-white shadow-sm'
-                        : 'text-neutral-500'
-                    }`}
-                  >
-                    {sec === 'ALL' ? tr('Semua', 'All') : sec}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+      </main>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-neutral-200 dark:border-neutral-800 text-left text-neutral-500">
-                  <th className="py-2.5 pr-3">{tr('Tanggal', 'Date')}</th>
-                  <th className="py-2.5 px-3">{tr('Karyawan & Seksi', 'Employee & Section')}</th>
-                  <th className="py-2.5 px-3">{tr('Barang Diminta', 'Requested Items')}</th>
-                  <th className="py-2.5 px-3">{tr('Keperluan', 'Purpose')}</th>
-                  <th className="py-2.5 pl-3 text-right">{tr('Status Approval', 'Approval Status')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/80">
-                {recentRequests.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-neutral-500">
-                      {tr(
-                        'Belum ada riwayat permintaan untuk filter ini.',
-                        'No request history for this filter.'
-                      )}
-                    </td>
-                  </tr>
-                ) : (
-                  recentRequests.map((req) => (
-                    <tr key={req.id} className="hover:bg-neutral-50/70 dark:hover:bg-neutral-800/30">
-                      <td className="py-3 pr-3 whitespace-nowrap font-mono-num text-neutral-600 dark:text-neutral-400">
-                        {formatDateIndo(req.requestDate, language)}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-neutral-900 dark:text-white">
-                          {req.requesterName}
-                        </div>
-                        <div className="text-[11px] text-neutral-500">
-                          {req.requesterSection}
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-neutral-700 dark:text-neutral-300">
-                        {req.items.map((it) => `${it.itemName} (${it.qty} ${it.uom})`).join(', ')}
-                      </td>
-                      <td className="py-3 px-3 text-neutral-500 max-w-xs">
-                        <div className="truncate" title={req.note}>
-                          {req.note}
-                        </div>
-                        {req.status === 'DITOLAK' && req.rejectionNote && (
-                          <div className="text-[11px] text-red-600 mt-0.5">
-                            {tr('Alasan:', 'Reason:')} {req.rejectionNote}
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3 pl-3 text-right whitespace-nowrap">
-                        {req.status === 'MENUNGGU' && (
-                          <span className="inline-flex items-center gap-1 font-semibold text-amber-600">
-                            <Clock className="w-3.5 h-3.5" />
-                            {tr('Menunggu Approval', 'Pending Approval')}
-                          </span>
-                        )}
-                        {req.status === 'DISETUJUI' && (
-                          <div className="inline-flex flex-col items-end">
-                            <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-400">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              {tr('Disetujui', 'Approved')}
-                            </span>
-                            {req.processedByName && (
-                              <span className="text-[10px] text-neutral-400">
-                                {tr('oleh', 'by')} {req.processedByName}
-                              </span>
+      {/* Popup Pemantauan Progress Request Karyawan Dept. HR */}
+      {statusModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="status-tracker-modal-title"
+          onClick={() => setStatusModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-sm"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-3xl border border-neutral-200/90 dark:border-neutral-800 bg-white dark:bg-[#14171D] shadow-2xl overflow-hidden"
+          >
+            {/* Top accent hairline matching app theme */}
+            <div
+              className="h-[3px] w-full shrink-0"
+              style={{
+                background: `linear-gradient(to right, ${activePreset.primary}, ${activePreset.accent}, transparent)`,
+              }}
+            />
+
+            {/* Popup Header */}
+            <div className="px-5 sm:px-7 pt-5 sm:pt-6 pb-4 flex items-start justify-between gap-4">
+              <div className="space-y-1 min-w-0">
+                <div className="text-xs font-bold text-theme-primary">
+                  {tr('Pemantauan Mandiri Karyawan Dept. HR', 'HR Employee Self-Service Tracking')}
+                </div>
+                <h2
+                  id="status-tracker-modal-title"
+                  className="text-xl sm:text-2xl font-extrabold font-display tracking-tight text-neutral-900 dark:text-white"
+                >
+                  {tr(
+                    'Pantau Status Pengambilan Karyawan Dept. HR',
+                    'Track HR Employee Request Status'
+                  )}
+                </h2>
+                <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
+                  {tr(
+                    'Cek apakah permintaan Anda masih menunggu persetujuan PIC, sudah disetujui, atau ditolak.',
+                    'Check whether your request is pending PIC review, approved, or rejected.'
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStatusModalOpen(false)}
+                aria-label={tr('Tutup jendela pemantauan', 'Close tracking modal')}
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-neutral-500 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors shrink-0 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="px-5 sm:px-7 pb-4 space-y-3 border-b border-neutral-100 dark:border-neutral-800/90">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 text-xs">
+                <div className="relative flex-1 min-w-0">
+                  <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={statusSearch}
+                    onChange={(e) => setStatusSearch(e.target.value)}
+                    placeholder={tr('Cari nama karyawan / barang...', 'Search employee / item...')}
+                    className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50/70 dark:bg-[#0F1114] text-xs focus:outline-none focus:border-theme-primary"
+                  />
+                  {statusSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setStatusSearch('')}
+                      aria-label={tr('Hapus pencarian', 'Clear search')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="inline-flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 overflow-x-auto shrink-0">
+                  {(['ALL', ...HR_SECTIONS] as const).map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() => setStatusSection(sec)}
+                      className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                        statusSection === sec
+                          ? 'bg-white dark:bg-[#1A1E26] text-neutral-900 dark:text-white shadow-sm'
+                          : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                      }`}
+                    >
+                      {sec === 'ALL' ? tr('Semua', 'All') : sec}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quiet unboxed summary metadata */}
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono-num">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>
+                    {tr('Menampilkan', 'Showing')}{' '}
+                    <strong className="text-neutral-800 dark:text-neutral-200">
+                      {recentRequests.length}
+                    </strong>{' '}
+                    {tr('permintaan', 'requests')}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                    {statusSummary.pending} {tr('Menunggu', 'Pending')}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                    {statusSummary.approved} {tr('Disetujui', 'Approved')}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-red-600 dark:text-red-400 font-semibold">
+                    {statusSummary.rejected} {tr('Ditolak', 'Rejected')}
+                  </span>
+                </div>
+                <span className="text-neutral-400">
+                  {tr('Maks. 20 riwayat terbaru', 'Latest 20 records')}
+                </span>
+              </div>
+            </div>
+
+            {/* Scrollable Progress Cards List */}
+            <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-5 space-y-4">
+              {recentRequests.length === 0 ? (
+                <div className="py-12 text-center space-y-2 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl">
+                  <ClipboardList className="w-8 h-8 text-neutral-300 dark:text-neutral-600 mx-auto" />
+                  <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                    {tr(
+                      'Belum ada riwayat permintaan untuk filter ini.',
+                      'No request history for this filter.'
+                    )}
+                  </p>
+                </div>
+              ) : (
+                recentRequests.map((req) => {
+                  const isPending = req.status === 'MENUNGGU';
+                  const isApproved = req.status === 'DISETUJUI';
+                  const isRejected = req.status === 'DITOLAK';
+
+                  return (
+                    <article
+                      key={req.id}
+                      className="rounded-2xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/40 dark:bg-[#0F1114]/70 p-4 sm:p-5 space-y-3.5 transition-colors hover:border-neutral-300 dark:hover:border-neutral-700"
+                    >
+                      {/* Card Header: Date, Employee & Section + Status Approval */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-mono-num text-neutral-500 dark:text-neutral-400">
+                            <span>{formatDateIndo(req.requestDate, language)}</span>
+                            <span aria-hidden="true">·</span>
+                            <span>{req.requesterSection}</span>
+                            {req.requesterNik && (
+                              <>
+                                <span aria-hidden="true">·</span>
+                                <span>{req.requesterNik}</span>
+                              </>
                             )}
                           </div>
-                        )}
-                        {req.status === 'DITOLAK' && (
-                          <span className="inline-flex items-center gap-1 font-semibold text-red-600">
-                            <XCircle className="w-3.5 h-3.5" />
-                            {tr('Ditolak', 'Rejected')}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
+                          <h3 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-white leading-snug">
+                            {req.requesterName}
+                          </h3>
+                        </div>
+
+                        <div className="sm:text-right shrink-0">
+                          {isPending && (
+                            <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                              <Clock className="w-4 h-4 shrink-0" />
+                              {tr('Menunggu Approval', 'Pending Approval')}
+                            </span>
+                          )}
+                          {isApproved && (
+                            <div className="inline-flex flex-col sm:items-end">
+                              <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                                {tr('Disetujui', 'Approved')}
+                              </span>
+                              {req.processedByName && (
+                                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                                  {tr('oleh', 'by')} {req.processedByName}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {isRejected && (
+                            <div className="inline-flex flex-col sm:items-end">
+                              <span className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
+                                <XCircle className="w-4 h-4 shrink-0" />
+                                {tr('Ditolak', 'Rejected')}
+                              </span>
+                              {req.processedByName && (
+                                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                                  {tr('oleh', 'by')} {req.processedByName}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Requested Items & Purpose Details (All existing details preserved) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+                        <div className="space-y-0.5">
+                          <div className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400">
+                            {tr('Barang Diminta', 'Requested Items')}
+                          </div>
+                          <div className="text-neutral-800 dark:text-neutral-200 leading-relaxed font-medium">
+                            {req.items
+                              .map((it) => `${it.itemName} (${it.qty} ${it.uom})`)
+                              .join(', ')}
+                          </div>
+                        </div>
+
+                        <div className="space-y-0.5">
+                          <div className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400">
+                            {tr('Keperluan', 'Purpose')}
+                          </div>
+                          <div className="text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                            {req.note || '-'}
+                          </div>
+                          {isRejected && req.rejectionNote && (
+                            <div className="text-[11px] font-medium text-red-600 dark:text-red-400 pt-0.5">
+                              {tr('Alasan:', 'Reason:')} {req.rejectionNote}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 3-Stage Progress Timeline (Modeled after reference self-service tracker) */}
+                      <div className="pt-3 border-t border-neutral-200/70 dark:border-neutral-800 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        {/* Stage 1: Diajukan */}
+                        <div className="space-y-0.5">
+                          <div className="inline-flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-400">
+                            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            <span>{tr('1. Diajukan', '1. Submitted')}</span>
+                          </div>
+                          <div className="text-[11px] font-mono-num text-neutral-500 dark:text-neutral-400 pl-5">
+                            {formatDateIndo(req.requestDate, language)}
+                          </div>
+                        </div>
+
+                        {/* Stage 2: Review PIC HR */}
+                        <div className="space-y-0.5">
+                          <div
+                            className={`inline-flex items-center gap-1.5 font-semibold ${
+                              isPending
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-emerald-700 dark:text-emerald-400'
+                            }`}
+                          >
+                            {isPending ? (
+                              <Clock className="w-3.5 h-3.5 shrink-0" />
+                            ) : (
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            )}
+                            <span>{tr('2. Review PIC HR', '2. HR PIC Review')}</span>
+                          </div>
+                          <div className="text-[11px] text-neutral-500 dark:text-neutral-400 pl-5">
+                            {isPending
+                              ? tr('Sedang ditinjau PIC HR', 'Under HR PIC review')
+                              : req.processedByName
+                              ? `${tr('Ditinjau oleh', 'Reviewed by')} ${req.processedByName}`
+                              : tr('Selesai ditinjau', 'Review completed')}
+                          </div>
+                        </div>
+
+                        {/* Stage 3: Keputusan */}
+                        <div className="space-y-0.5">
+                          <div
+                            className={`inline-flex items-center gap-1.5 font-semibold ${
+                              isPending
+                                ? 'text-neutral-400 dark:text-neutral-500'
+                                : isApproved
+                                ? 'text-emerald-700 dark:text-emerald-400'
+                                : 'text-red-600 dark:text-red-400'
+                            }`}
+                          >
+                            {isPending ? (
+                              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                            ) : isApproved ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                            ) : (
+                              <XCircle className="w-3.5 h-3.5 shrink-0" />
+                            )}
+                            <span>{tr('3. Keputusan', '3. Decision')}</span>
+                          </div>
+                          <div className="text-[11px] text-neutral-500 dark:text-neutral-400 pl-5">
+                            {isPending
+                              ? tr('Menunggu Approval', 'Pending Approval')
+                              : isApproved
+                              ? tr('Disetujui · Siap diambil', 'Approved · Ready for pickup')
+                              : tr('Ditolak', 'Rejected')}
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Popup Footer */}
+            <div className="px-5 sm:px-7 py-3.5 border-t border-neutral-100 dark:border-neutral-800/90 bg-neutral-50/70 dark:bg-[#101318] flex items-center justify-between gap-3 text-xs">
+              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                {tr(
+                  'Status diperbarui otomatis setelah PIC / Admin HR memproses permintaan.',
+                  'Status updates automatically once HR PIC / Admin processes the request.'
                 )}
-              </tbody>
-            </table>
+              </span>
+              <button
+                type="button"
+                onClick={() => setStatusModalOpen(false)}
+                className="px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                {tr('Tutup', 'Close')}
+              </button>
+            </div>
           </div>
-        </section>
-      </main>
+        </div>
+      )}
     </div>
   );
 };
