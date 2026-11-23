@@ -32,22 +32,27 @@ export const AuditLogPage: React.FC = () => {
     });
   }, [actionFilter, search, store.auditLogs, userFilter]);
 
-  const handleExport = () => {
-    exportRowsToExcel(
-      filtered.map((l) => ({
-        [tr('Waktu', 'Timestamp')]: formatDateTimeIndo(l.timestamp, language),
-        [tr('Pengguna', 'User')]: l.userName,
-        [tr('Peran', 'Role')]: getRoleLabel(l.userRole),
-        [tr('Aksi', 'Action')]: l.action,
-        [tr('Objek', 'Object')]: l.objectType,
-        Detail: l.objectLabel,
-        [tr('Nilai Lama', 'Old Value')]: l.oldValue || '-',
-        [tr('Nilai Baru', 'New Value')]: l.newValue || '-',
-      })),
-      'Audit Log',
-      'Audit_Log_HR_SupplyHub.xlsx'
-    );
-    toast(tr('Audit log diekspor ke Excel', 'Audit log exported to Excel'), 'success');
+  const handleExport = async () => {
+    try {
+      await exportRowsToExcel(
+        filtered.map((l) => ({
+          [tr('Waktu', 'Timestamp')]: formatDateTimeIndo(l.timestamp, language),
+          [tr('Pengguna', 'User')]: l.userName,
+          [tr('Peran', 'Role')]: getRoleLabel(l.userRole),
+          [tr('Aksi', 'Action')]: l.action,
+          [tr('Objek', 'Object')]: l.objectType,
+          Detail: l.objectLabel,
+          [tr('Nilai Lama', 'Old Value')]: l.oldValue || '-',
+          [tr('Nilai Baru', 'New Value')]: l.newValue || '-',
+        })),
+        'Audit Log',
+        'Audit_Log_HR_SupplyHub.xlsx'
+      );
+      toast(tr('Audit log diekspor ke Excel', 'Audit log exported to Excel'), 'success');
+    } catch (err) {
+      console.error('[HR SupplyHub] Export audit log failed:', err);
+      toast(tr('Gagal mengekspor Audit Log ke Excel', 'Failed to export Audit Log to Excel'), 'error');
+    }
   };
 
   return (

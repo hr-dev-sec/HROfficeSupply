@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -28,7 +28,7 @@ import { useSupplyHub } from '../context/SupplyHubContext';
 import { useToast } from '../context/ToastContext';
 import type { SupplyItem, SupplyType } from '../types';
 import { processAndUploadImage } from '../services/mediaStorageService';
-import { exportItemsToExcel } from '../utils/exportUtils';
+import { exportItemsToExcel, exportQrLabelsToPdf } from '../utils/exportUtils';
 
 export const MasterItemsPage: React.FC = () => {
   const { user, canEditOperational } = useAuth();
@@ -63,6 +63,9 @@ export const MasterItemsPage: React.FC = () => {
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<SupplyItem> | null>(null);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportingQrPdf, setExportingQrPdf] = useState(false);
+  const qrSheetRef = useRef<HTMLDivElement | null>(null);
 
   const [qrModalItems, setQrModalItems] = useState<SupplyItem[] | null>(null);
   const [previewPhotoItem, setPreviewPhotoItem] = useState<SupplyItem | null>(null);
@@ -360,11 +363,29 @@ export const MasterItemsPage: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => exportItemsToExcel(filteredItems)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  disabled={exportingExcel}
+                  onClick={async () => {
+                    try {
+                      setExportingExcel(true);
+                      await exportItemsToExcel(filteredItems);
+                      toast(
+                        tr('Master item berhasil diekspor ke Excel', 'Master items exported to Excel'),
+                        'success'
+                      );
+                    } catch (err) {
+                      console.error('[HR SupplyHub] Export master items Excel failed:', err);
+                      toast(
+                        tr('Gagal mengekspor Master Item ke Excel', 'Failed to export Master Items to Excel'),
+                        'error'
+                      );
+                    } finally {
+                      setExportingExcel(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  {tr('Ekspor Excel', 'Export Excel')}
+                  {exportingExcel ? tr('Memproses...', 'Processing...') : tr('Ekspor Excel', 'Export Excel')}
                 </button>
                 {canEditOperational && (
                   <>
@@ -1290,27 +1311,51 @@ export const MasterItemsPage: React.FC = () => {
 
       {/* QR Label Print Modal */}
       {qrModalItems && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm">
-          <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="no-print flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55 backdrop-blur-sm print:static print:bg-white print:p-0 print:block">
+          <div className="w-full max-w-2xl rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 space-y-4 max-h-[90vh] overflow-y-auto print:max-w-none print:max-h-none print:overflow-visible print:border-0 print:p-0">
+            <div className="no-print flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-base font-bold">
                 {tr('Label QR Item', 'Item QR Labels')} ({qrModalItems.length} {tr('label', 'labels')})
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={exportingQrPdf}
+                  onClick={async () => {
+                    if (!qrSheetRef.current) return;
+                    try {
+                      setExportingQrPdf(true);
+                      await exportQrLabelsToPdf(
+                        qrSheetRef.current,
+                        `Label_QR_HR_SupplyHub_${new Date().toISOString().slice(0, 10)}.pdf`
+                      );
+                      toast(tr('PDF Label QR berhasil diunduh', 'QR Labels PDF downloaded'), 'success');
+                    } catch (err) {
+                      console.error('[HR SupplyHub] Export QR PDF failed:', err);
+                      toast(tr('Gagal mengekspor PDF Label QR', 'Failed to export QR Labels PDF'), 'error');
+                    } finally {
+                      setExportingQrPdf(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {exportingQrPdf ? tr('Memproses PDF...', 'Processing PDF...') : tr('Ekspor PDF', 'Export PDF')}
+                </button>
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-theme-primary bg-theme-primary-hover text-white text-xs font-semibold cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   {tr('Cetak Label', 'Print Labels')}
                 </button>
-                <button type="button" onClick={() => setQrModalItems(null)}>
+                <button type="button" onClick={() => setQrModalItems(null)} className="cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div ref={qrSheetRef} className="grid sm:grid-cols-2 gap-3 bg-white p-2 rounded-xl">
               {qrModalItems.map((it) => (
                 <div
                   key={it.id}

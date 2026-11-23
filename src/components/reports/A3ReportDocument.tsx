@@ -388,7 +388,7 @@ export const A3ReportDocument: React.FC<A3ReportDocumentProps> = ({
       </div>
 
       {/* Petunjuk */}
-      <div className="mt-7 pt-3 border-t border-neutral-200 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+      <div className="a3-footer-block mt-7 pt-3 border-t border-neutral-200 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
         <div className="text-[10.5px] text-black leading-relaxed">
           <div className="font-semibold mb-1">Petunjuk :</div>
           <ol className="list-decimal pl-5 space-y-0.5">

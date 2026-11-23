@@ -12,6 +12,7 @@ import {
   History,
   Paperclip,
   Plus,
+  Printer,
   RefreshCw,
   Search,
   Send,
@@ -86,6 +87,7 @@ export const ForecastPage: React.FC = () => {
   const [onlyZeroStock, setOnlyZeroStock] = useState(false);
 
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
   const docContainerRef = useRef<HTMLDivElement>(null);
 
   // Add item modal
@@ -160,40 +162,74 @@ export const ForecastPage: React.FC = () => {
   const handleExportPdf = async () => {
     setTab('DOCUMENT');
     setExportingPdf(true);
-    setTimeout(async () => {
-      try {
+    try {
+      // Wait reliably until DOCUMENT tab and [data-rf-page] nodes are mounted in DOM
+      let pageEls: HTMLElement[] = [];
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
         const container = docContainerRef.current;
-        if (!container) return;
-        const pageEls = Array.from(
-          container.querySelectorAll<HTMLElement>('[data-rf-page]')
-        );
-        await exportElementsToMultiPageA3Pdf(
-          pageEls,
-          `RF_Office_Supplies_GA_${rf.fiscalYearLabel}_${activeMonth}.pdf`
-        );
-        toast(
-          tr('PDF Rolling Forecast berhasil diunduh', 'Rolling Forecast PDF downloaded'),
-          'success',
-          tr(`Format A3 Landscape (${pageEls.length} halaman)`, `A3 Landscape (${pageEls.length} pages)`)
-        );
-      } catch {
-        toast(tr('Gagal mengekspor PDF Rolling Forecast', 'Failed to export Rolling Forecast PDF'), 'error');
-      } finally {
-        setExportingPdf(false);
+        if (container) {
+          pageEls = Array.from(container.querySelectorAll<HTMLElement>('[data-rf-page]'));
+          if (pageEls.length > 0) break;
+        }
       }
-    }, 150);
+      if (pageEls.length === 0) {
+        throw new Error(
+          tr(
+            'Halaman pratinjau dokumen belum siap. Coba klik lagi.',
+            'Document preview pages are not ready yet. Please try again.'
+          )
+        );
+      }
+      // Give one extra frame for layout/images to settle
+      await new Promise((resolve) => setTimeout(resolve, 120));
+
+      await exportElementsToMultiPageA3Pdf(
+        pageEls,
+        `RF_Office_Supplies_GA_${rf.fiscalYearLabel}_${activeMonth}.pdf`
+      );
+      toast(
+        tr('PDF Rolling Forecast berhasil diunduh', 'Rolling Forecast PDF downloaded'),
+        'success',
+        tr(`Format A3 Landscape (${pageEls.length} halaman)`, `A3 Landscape (${pageEls.length} pages)`)
+      );
+    } catch (err) {
+      console.error('[HR SupplyHub] Export Rolling Forecast PDF failed:', err);
+      const detail = err instanceof Error ? err.message : String(err || '');
+      toast(
+        tr('Gagal mengekspor PDF Rolling Forecast', 'Failed to export Rolling Forecast PDF'),
+        'error',
+        detail || undefined
+      );
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
-  const handleExportExcel = () => {
-    exportRollingForecastToExcel(rf);
-    toast(
-      tr('Excel Rolling Forecast berhasil diunduh', 'Rolling Forecast Excel downloaded'),
-      'success',
-      tr(
-        `Sheet RF ${rf.fiscalYearLabel} & List Item GA (${rf.rows.length} item)`,
-        `RF ${rf.fiscalYearLabel} & GA Item Catalog (${rf.rows.length} items)`
-      )
-    );
+  const handleExportExcel = async () => {
+    try {
+      setExportingExcel(true);
+      await exportRollingForecastToExcel(rf);
+      toast(
+        tr('Excel Rolling Forecast berhasil diunduh', 'Rolling Forecast Excel downloaded'),
+        'success',
+        tr(
+          `Sheet RF ${rf.fiscalYearLabel} & List Item GA (${rf.rows.length} item)`,
+          `RF ${rf.fiscalYearLabel} & GA Item Catalog (${rf.rows.length} items)`
+        )
+      );
+    } catch (err) {
+      console.error('[HR SupplyHub] Export Rolling Forecast Excel failed:', err);
+      const detail = err instanceof Error ? err.message : String(err || '');
+      toast(
+        tr('Gagal mengekspor Excel Rolling Forecast', 'Failed to export Rolling Forecast Excel'),
+        'error',
+        detail || undefined
+      );
+    } finally {
+      setExportingExcel(false);
+    }
   };
 
   const handleSyncStock = () => {
@@ -290,7 +326,7 @@ export const ForecastPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header & Main Export Actions */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="no-print flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-theme-primary mb-1">
             <CalendarRange className="w-3.5 h-3.5" />
@@ -311,11 +347,14 @@ export const ForecastPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            disabled={exportingExcel}
             onClick={handleExportExcel}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50 cursor-pointer"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            {tr('Ekspor Excel (.xlsx)', 'Export Excel (.xlsx)')}
+            {exportingExcel
+              ? tr('Memproses Excel...', 'Processing Excel...')
+              : tr('Ekspor Excel (.xlsx)', 'Export Excel (.xlsx)')}
           </button>
           <button
             type="button"
@@ -351,7 +390,7 @@ export const ForecastPage: React.FC = () => {
 
       {/* Arsip Dokumen Rolling Forecast GA */}
       {forecastDocs.length > 0 && (
-        <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-2.5 text-xs">
+        <div className="no-print p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F] space-y-2.5 text-xs">
           <div className="flex items-center justify-between gap-2">
             <div className="font-bold flex items-center gap-1.5">
               <Paperclip className="w-3.5 h-3.5 text-theme-primary" />
@@ -418,7 +457,7 @@ export const ForecastPage: React.FC = () => {
       )}
 
       {/* KPI Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="no-print grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#171A1F]">
           <div className="text-xs text-neutral-500">
             {tr('Katalog Resmi GA Dept.', 'Official GA Dept. Catalog')}
@@ -469,7 +508,7 @@ export const ForecastPage: React.FC = () => {
       </div>
 
       {/* Mode Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="no-print flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center p-1 rounded-xl bg-neutral-200/70 dark:bg-neutral-800">
           <button
             type="button"
@@ -820,7 +859,7 @@ export const ForecastPage: React.FC = () => {
 
       {tab === 'DOCUMENT' && (
         <div className="space-y-4">
-          <div className="p-3.5 rounded-xl border border-amber-300/80 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
+          <div className="no-print p-3.5 rounded-xl border border-amber-300/80 bg-amber-50 dark:bg-amber-950/20 text-xs text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-2">
             <span className="inline-flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               {tr(
@@ -828,8 +867,16 @@ export const ForecastPage: React.FC = () => {
                 'Official GA Dept. Rolling Forecast Document preview (2-page A3 Landscape). Use Export PDF (A3) or Export Excel above.'
               )}
             </span>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-400/80 bg-white/80 dark:bg-neutral-900/60 text-amber-900 dark:text-amber-200 font-semibold hover:bg-white transition cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              {tr('Cetak A3', 'Print A3')}
+            </button>
           </div>
-          <div ref={docContainerRef} className="overflow-x-auto pb-4">
+          <div ref={docContainerRef} className="print-only-container overflow-x-auto pb-4">
             <RollingForecastDocument data={rf} logoUrl={store.settings.logoUrl} />
           </div>
         </div>

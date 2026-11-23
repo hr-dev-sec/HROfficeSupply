@@ -243,31 +243,44 @@
     box-shadow: none !important;
     border: none !important;
     background: #FFFFFF !important;
+    overflow: visible !important;
   }
 
-  .a3-report-sheet {
+  .a3-report-sheet,
+  [data-rf-page] {
     width: 100% !important;
     min-width: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
     font-size: 9pt !important;
+    overflow: visible !important;
   }
 
-  .a3-report-sheet table {
+  [data-rf-page] + [data-rf-page] {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  .a3-report-sheet table,
+  [data-rf-page] table {
     page-break-inside: auto;
   }
 
-  .a3-report-sheet tr {
+  .a3-report-sheet tr,
+  [data-rf-page] tr {
     page-break-inside: avoid;
     page-break-after: auto;
   }
 
-  .a3-report-sheet thead {
+  .a3-report-sheet thead,
+  [data-rf-page] thead {
     display: table-header-group;
   }
 
-  .signature-print-block {
+  .signature-print-block,
+  .a3-footer-block {
     page-break-inside: avoid;
+    break-inside: avoid;
   }
 }

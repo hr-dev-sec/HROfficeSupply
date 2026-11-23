@@ -115,13 +115,36 @@ export function renderDocumentIcon(doc: Pick<SystemDocument, 'fileType' | 'fileN
   return <FileIcon className={`${className} text-neutral-500`} />;
 }
 
-export function downloadSystemDocument(doc: SystemDocument) {
-  const a = document.createElement('a');
-  a.href = doc.fileUrl;
-  a.download = doc.fileName;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
-  a.click();
+export async function downloadSystemDocument(doc: SystemDocument): Promise<void> {
+  const triggerLink = (href: string, fileName: string, openBlank = false) => {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = fileName;
+    a.style.display = 'none';
+    if (openBlank) {
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    }
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  if (doc.fileUrl.startsWith('data:') || doc.fileUrl.startsWith('blob:')) {
+    triggerLink(doc.fileUrl, doc.fileName);
+    return;
+  }
+
+  try {
+    const res = await fetch(doc.fileUrl, { mode: 'cors' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    triggerLink(blobUrl, doc.fileName);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+  } catch {
+    triggerLink(doc.fileUrl, doc.fileName, true);
+  }
 }
 
 interface DocumentUploadModalProps {

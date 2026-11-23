@@ -184,23 +184,28 @@ export const TransactionsPage: React.FC = () => {
     ]);
   };
 
-  const handleExportLog = () => {
-    exportRowsToExcel(
-      filteredTxs.map((t) => ({
-        Tanggal: formatDateIndo(t.date, language),
-        Periode: formatPeriodShort(t.period, language),
-        Tipe: t.type,
-        Kode: t.codeItem || '-',
-        Item: t.itemName,
-        Jumlah: t.qty,
-        UOM: t.uom,
-        Pencatat: t.recordedByName,
-        Catatan: t.note,
-      })),
-      tr('Buku Log Transaksi', 'Transaction Logbook'),
-      'Buku_Log_Transaksi_HR_SupplyHub.xlsx'
-    );
-    toast(tr('Buku log berhasil diekspor ke Excel', 'Logbook exported to Excel'), 'success');
+  const handleExportLog = async () => {
+    try {
+      await exportRowsToExcel(
+        filteredTxs.map((t) => ({
+          [tr('Tanggal', 'Date')]: formatDateIndo(t.date, language),
+          [tr('Periode', 'Period')]: formatPeriodShort(t.period, language),
+          [tr('Tipe', 'Type')]: t.type,
+          [tr('Kode', 'Code')]: t.codeItem || '-',
+          Item: t.itemName,
+          [tr('Jumlah', 'Qty')]: t.qty,
+          UOM: t.uom,
+          [tr('Pencatat', 'Recorded By')]: t.recordedByName,
+          [tr('Catatan', 'Notes')]: t.note,
+        })),
+        tr('Buku Log Transaksi', 'Transaction Logbook'),
+        'Buku_Log_Transaksi_HR_SupplyHub.xlsx'
+      );
+      toast(tr('Buku log berhasil diekspor ke Excel', 'Logbook exported to Excel'), 'success');
+    } catch (err) {
+      console.error('[HR SupplyHub] Export transaction logbook failed:', err);
+      toast(tr('Gagal mengekspor buku log ke Excel', 'Failed to export logbook to Excel'), 'error');
+    }
   };
 
   return (

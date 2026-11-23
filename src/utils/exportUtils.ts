@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import {
   FORECAST_MONTH_KEYS,
@@ -8,83 +8,404 @@ import {
   type SupplyItem,
 } from '../types';
 
-export async function exportElementToA3Pdf(element: HTMLElement, fileName: string): Promise<void> {
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#FFFFFF',
-    logging: false,
+// ============================================================================
+// PDF Export Helpers (Tailwind v4 oklch-safe via html2canvas-pro + Smart A3)
+// ============================================================================
+
+function triggerBlobDownload(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function savePdfAsDownload(pdf: jsPDF, fileName: string): void {
+  const finalName = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+  const blob = pdf.output('blob');
+  triggerBlobDownload(blob, finalName);
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') resolve(reader.result);
+      else reject(new Error('Failed to read image blob'));
+    };
+    reader.onerror = () => reject(reader.error || new Error('FileReader error'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Pre-fetches <img> URLs inside the target element into data: URLs so html2canvas
+ * never produces a tainted canvas (CORS SecurityError) when rendering Supabase
+ * Storage logos or digital signatures.
+ */
+async function preloadImagesAsDataUrls(root: HTMLElement): Promise<Map<string, string>> {
+  const cache = new Map<string, string>();
+  const imgs = Array.from(root.querySelectorAll<HTMLImageElement>('img'));
+
+  await Promise.all(
+    imgs.map(async (img) => {
+      const rawSrc = img.getAttribute('src') || img.src;
+      if (!rawSrc || rawSrc.startsWith('data:') || rawSrc.startsWith('blob:') || cache.has(rawSrc)) {
+        return;
+      }
+      try {
+        const res = await fetch(rawSrc, { mode: 'cors', credentials: 'omit' });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const dataUrl = await blobToDataUrl(blob);
+        cache.set(rawSrc, dataUrl);
+        if (img.src && img.src !== rawSrc) {
+          cache.set(img.src, dataUrl);
+        }
+      } catch {
+        // Fallback handled safely in onclone (same-origin still renders; unreachable images hidden)
+      }
+    })
+  );
+
+  return cache;
+}
+
+/**
+ * Collects safe vertical page-break positions (in CSS px relative to root top)
+ * aligned to table row bottom edges and signature/footer block boundaries so
+ * multi-page A3 slicing never cuts a row or signature in half.
+ */
+function collectSafeBreakOffsets(root: HTMLElement): number[] {
+  const rootRect = root.getBoundingClientRect();
+  const offsets = new Set<number>();
+
+  const candidates = root.querySelectorAll<HTMLElement>(
+    'tbody tr, .signature-print-block, .a3-footer-block'
+  );
+  candidates.forEach((el) => {
+    const r = el.getBoundingClientRect();
+    const top = Math.round(r.top - rootRect.top);
+    const bottom = Math.round(r.bottom - rootRect.top);
+    if (top > 20) offsets.add(top);
+    if (bottom > 20) offsets.add(bottom);
   });
 
-  const imgData = canvas.toDataURL('image/png');
+  return Array.from(offsets).sort((a, b) => a - b);
+}
+
+async function captureElementForPdf(element: HTMLElement): Promise<{
+  canvas: HTMLCanvasElement;
+  safeBreaksCanvasPx: number[];
+}> {
+  // Wait for fonts & visible images to settle
+  if (typeof document !== 'undefined' && 'fonts' in document) {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // Ignore font readiness issues
+    }
+  }
+
+  const imageDataMap = await preloadImagesAsDataUrls(element);
+  const safeBreaksCssPx = collectSafeBreakOffsets(element);
+
+  // Compute full unclipped dimensions (even if element is inside overflow-x-auto on small screen)
+  const measuredWidth = Math.max(element.scrollWidth, element.offsetWidth, 1060);
+  const measuredHeight = Math.max(element.scrollHeight, element.offsetHeight, 400);
+
+  // Clamp scale to prevent exceeding browser max canvas dimension (~16384px)
+  const maxCanvasDim = 14000;
+  let scale = 2;
+  if (measuredWidth * scale > maxCanvasDim || measuredHeight * scale > maxCanvasDim) {
+    scale = Math.max(
+      1,
+      Math.min(maxCanvasDim / measuredWidth, maxCanvasDim / measuredHeight)
+    );
+  }
+
+  const captureId = `pdf-capture-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  element.setAttribute('data-pdf-capture-id', captureId);
+
+  try {
+    const canvas = await html2canvas(element, {
+      scale,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: '#FFFFFF',
+      logging: false,
+      width: measuredWidth,
+      height: measuredHeight,
+      windowWidth: Math.max(window.innerWidth, measuredWidth + 80),
+      windowHeight: Math.max(window.innerHeight, measuredHeight + 80),
+      scrollX: 0,
+      scrollY: 0,
+      onclone: (clonedDoc) => {
+        // Force light mode on cloned document so Dark Mode never leaks into printed PDF
+        clonedDoc.documentElement.classList.remove('dark');
+        clonedDoc.body.classList.remove('dark');
+        clonedDoc.body.style.backgroundColor = '#FFFFFF';
+        clonedDoc.body.style.color = '#111827';
+
+        const target = clonedDoc.querySelector<HTMLElement>(
+          `[data-pdf-capture-id="${captureId}"]`
+        );
+        if (!target) return;
+
+        // Expand ancestors so horizontal scroll never clips wide tables
+        let parent = target.parentElement;
+        while (parent && parent !== clonedDoc.body) {
+          parent.style.overflow = 'visible';
+          parent.style.maxWidth = 'none';
+          parent = parent.parentElement;
+        }
+
+        target.style.width = `${measuredWidth}px`;
+        target.style.maxWidth = 'none';
+        target.style.overflow = 'visible';
+        target.style.backgroundColor = '#FFFFFF';
+        target.style.boxShadow = 'none';
+
+        // Expand inner horizontal scroll wrappers
+        target.querySelectorAll<HTMLElement>('.overflow-x-auto, .overflow-hidden').forEach((el) => {
+          el.style.overflow = 'visible';
+        });
+
+        // Hide interactive print-excluded controls (e.g. "Tanda Tangani" buttons)
+        target.querySelectorAll<HTMLElement>('.no-print').forEach((el) => {
+          el.style.display = 'none';
+        });
+
+        // Swap preloaded CORS-safe image data URLs and hide broken external images
+        target.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
+          const rawSrc = img.getAttribute('src') || img.src;
+          const cached = imageDataMap.get(rawSrc) || imageDataMap.get(img.src);
+          if (cached) {
+            img.src = cached;
+            img.removeAttribute('srcset');
+          } else if (rawSrc && /^https?:\/\//i.test(rawSrc) && !rawSrc.startsWith(window.location.origin)) {
+            // Unreachable cross-origin image could taint canvas; hide safely
+            img.style.visibility = 'hidden';
+          }
+        });
+
+        // Ensure SVG elements (QRCodeSVG, icons) have explicit numeric width/height attributes
+        target.querySelectorAll<SVGSVGElement>('svg').forEach((svg) => {
+          const rect = svg.getBoundingClientRect();
+          if (rect.width > 0 && !svg.getAttribute('width')) {
+            svg.setAttribute('width', String(Math.round(rect.width)));
+          }
+          if (rect.height > 0 && !svg.getAttribute('height')) {
+            svg.setAttribute('height', String(Math.round(rect.height)));
+          }
+        });
+      },
+    });
+
+    const ratioY = measuredHeight > 0 ? canvas.height / measuredHeight : scale;
+    const safeBreaksCanvasPx = safeBreaksCssPx
+      .map((y) => Math.round(y * ratioY))
+      .filter((y) => y > 0 && y < canvas.height);
+
+    return { canvas, safeBreaksCanvasPx };
+  } finally {
+    element.removeAttribute('data-pdf-capture-id');
+  }
+}
+
+/**
+ * Renders a captured canvas onto one or more A3 Landscape PDF pages.
+ * - Fits cleanly on 1 A3 page if full-width height is within 1.15x of printable A3 height.
+ * - Automatically slices across multiple A3 pages at full readable width for tall tables
+ *   (e.g. 58-item Office Supplies), snapping breaks cleanly between table rows.
+ */
+function appendCanvasToA3Pdf(
+  pdf: jsPDF,
+  canvas: HTMLCanvasElement,
+  safeBreaksCanvasPx: number[],
+  addPageFirst: boolean
+): void {
+  const pageWidth = pdf.internal.pageSize.getWidth(); // 420 mm
+  const pageHeight = pdf.internal.pageSize.getHeight(); // 297 mm
+  const marginX = 8;
+  const marginY = 8;
+  const maxWidth = pageWidth - marginX * 2; // 404 mm
+  const maxHeight = pageHeight - marginY * 2; // 281 mm
+
+  const imgRatio = canvas.width / canvas.height;
+  const fullWidthHeightMm = maxWidth / imgRatio;
+
+  // Case 1: Fits comfortably on 1 single A3 Landscape page
+  if (fullWidthHeightMm <= maxHeight * 1.15) {
+    if (addPageFirst) pdf.addPage('a3', 'landscape');
+    let renderW = maxWidth;
+    let renderH = fullWidthHeightMm;
+    if (renderH > maxHeight) {
+      renderH = maxHeight;
+      renderW = renderH * imgRatio;
+    }
+    const offsetX = (pageWidth - renderW) / 2;
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    pdf.addImage(imgData, 'JPEG', offsetX, marginY, renderW, renderH, undefined, 'FAST');
+    return;
+  }
+
+  // Case 2: Tall document — render at full readable A3 width and slice across pages cleanly
+  const mmPerPx = maxWidth / canvas.width;
+  const usableHeightMm = maxHeight - 4; // reserve 4mm bottom for subtle page indicator
+  const maxSlicePx = Math.floor(usableHeightMm / mmPerPx);
+
+  const slices: Array<{ startY: number; endY: number }> = [];
+  let cursorY = 0;
+
+  while (cursorY < canvas.height - 2) {
+    const idealEnd = Math.min(canvas.height, cursorY + maxSlicePx);
+    if (idealEnd >= canvas.height) {
+      slices.push({ startY: cursorY, endY: canvas.height });
+      break;
+    }
+
+    // Snap cut to nearest safe row/block boundary within the lower 35% of the page
+    const minAcceptableBreak = cursorY + Math.floor(maxSlicePx * 0.65);
+    let chosenEnd = idealEnd;
+    for (let i = safeBreaksCanvasPx.length - 1; i >= 0; i--) {
+      const b = safeBreaksCanvasPx[i];
+      if (b <= idealEnd && b >= minAcceptableBreak) {
+        chosenEnd = b;
+        break;
+      }
+    }
+
+    slices.push({ startY: cursorY, endY: chosenEnd });
+    cursorY = chosenEnd;
+  }
+
+  const sliceCanvas = document.createElement('canvas');
+  const sliceCtx = sliceCanvas.getContext('2d');
+  if (!sliceCtx) {
+    // Fallback single scaled page if 2D context unavailable
+    if (addPageFirst) pdf.addPage('a3', 'landscape');
+    const renderH = maxHeight;
+    const renderW = renderH * imgRatio;
+    pdf.addImage(
+      canvas.toDataURL('image/jpeg', 0.95),
+      'JPEG',
+      (pageWidth - renderW) / 2,
+      marginY,
+      renderW,
+      renderH,
+      undefined,
+      'FAST'
+    );
+    return;
+  }
+
+  slices.forEach((slice, idx) => {
+    if (addPageFirst || idx > 0) pdf.addPage('a3', 'landscape');
+    const sliceH = Math.max(1, slice.endY - slice.startY);
+    sliceCanvas.width = canvas.width;
+    sliceCanvas.height = sliceH;
+    sliceCtx.fillStyle = '#FFFFFF';
+    sliceCtx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+    sliceCtx.drawImage(
+      canvas,
+      0,
+      slice.startY,
+      canvas.width,
+      sliceH,
+      0,
+      0,
+      canvas.width,
+      sliceH
+    );
+
+    const renderH = sliceH * mmPerPx;
+    const sliceImg = sliceCanvas.toDataURL('image/jpeg', 0.95);
+    pdf.addImage(sliceImg, 'JPEG', marginX, marginY, maxWidth, renderH, undefined, 'FAST');
+
+    if (slices.length > 1) {
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Hal. ${idx + 1} / ${slices.length}`, pageWidth - marginX, pageHeight - 4, {
+        align: 'right',
+      });
+    }
+  });
+}
+
+export async function exportElementToA3Pdf(element: HTMLElement, fileName: string): Promise<void> {
+  const { canvas, safeBreaksCanvasPx } = await captureElementForPdf(element);
   const pdf = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
     format: 'a3',
+    compress: true,
   });
 
-  const pageWidth = pdf.internal.pageSize.getWidth(); // 420 mm
-  const pageHeight = pdf.internal.pageSize.getHeight(); // 297 mm
-  const margin = 8;
-  const maxWidth = pageWidth - margin * 2;
-  const maxHeight = pageHeight - margin * 2;
-
-  const imgRatio = canvas.width / canvas.height;
-  let renderW = maxWidth;
-  let renderH = renderW / imgRatio;
-
-  if (renderH > maxHeight) {
-    renderH = maxHeight;
-    renderW = renderH * imgRatio;
-  }
-
-  const offsetX = (pageWidth - renderW) / 2;
-  const offsetY = margin;
-
-  pdf.addImage(imgData, 'PNG', offsetX, offsetY, renderW, renderH);
-  pdf.save(fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
+  appendCanvasToA3Pdf(pdf, canvas, safeBreaksCanvasPx, false);
+  savePdfAsDownload(pdf, fileName);
 }
 
 export async function exportElementsToMultiPageA3Pdf(
   elements: HTMLElement[],
   fileName: string
 ): Promise<void> {
-  if (elements.length === 0) return;
+  if (elements.length === 0) {
+    throw new Error('Tidak ada halaman dokumen yang siap diekspor.');
+  }
 
   const pdf = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
     format: 'a3',
+    compress: true,
   });
 
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 8;
-  const maxWidth = pageWidth - margin * 2;
-  const maxHeight = pageHeight - margin * 2;
-
   for (let i = 0; i < elements.length; i++) {
-    if (i > 0) pdf.addPage('a3', 'landscape');
-    const canvas = await html2canvas(elements[i], {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#FFFFFF',
-      logging: false,
-    });
-    const imgData = canvas.toDataURL('image/png');
-    const imgRatio = canvas.width / canvas.height;
-    let renderW = maxWidth;
-    let renderH = renderW / imgRatio;
-    if (renderH > maxHeight) {
-      renderH = maxHeight;
-      renderW = renderH * imgRatio;
-    }
-    const offsetX = (pageWidth - renderW) / 2;
-    const offsetY = margin;
-    pdf.addImage(imgData, 'PNG', offsetX, offsetY, renderW, renderH);
+    const { canvas, safeBreaksCanvasPx } = await captureElementForPdf(elements[i]);
+    appendCanvasToA3Pdf(pdf, canvas, safeBreaksCanvasPx, i > 0);
   }
 
-  pdf.save(fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
+  savePdfAsDownload(pdf, fileName);
+}
+
+export async function exportQrLabelsToPdf(element: HTMLElement, fileName: string): Promise<void> {
+  const { canvas } = await captureElementForPdf(element);
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+    compress: true,
+  });
+
+  const pageWidth = pdf.internal.pageSize.getWidth(); // 210 mm
+  const pageHeight = pdf.internal.pageSize.getHeight(); // 297 mm
+  const margin = 10;
+  const maxWidth = pageWidth - margin * 2;
+  const maxHeight = pageHeight - margin * 2;
+  const imgRatio = canvas.width / canvas.height;
+  let renderW = maxWidth;
+  let renderH = renderW / imgRatio;
+  if (renderH > maxHeight) {
+    renderH = maxHeight;
+    renderW = renderH * imgRatio;
+  }
+  const offsetX = (pageWidth - renderW) / 2;
+  pdf.addImage(
+    canvas.toDataURL('image/jpeg', 0.95),
+    'JPEG',
+    offsetX,
+    margin,
+    renderW,
+    renderH,
+    undefined,
+    'FAST'
+  );
+  savePdfAsDownload(pdf, fileName);
 }
 
 // ============================================================================
@@ -118,14 +439,88 @@ async function saveWorkbookAsXlsx(wb: ExcelJS.Workbook, fileName: string): Promi
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  triggerBlobDownload(blob, fileName.endsWith('.xlsx') ? fileName : `${fileName}.xlsx`);
+}
+
+function sanitizeSheetName(name: string): string {
+  const cleaned = (name || 'Sheet1').replace(/[\\/?*[\]:]/g, ' ').trim();
+  return (cleaned || 'Sheet1').slice(0, 31);
+}
+
+function appendSignatureBlockToWorksheet(
+  ws: ExcelJS.Worksheet,
+  report: MonthlyReport,
+  sigStartRow: number,
+  totalCols: number
+): void {
+  const placeDateCol = Math.max(1, totalCols - 3);
+  ws.getCell(sigStartRow, placeDateCol).value = report.placeDateText || '';
+  ws.getCell(sigStartRow, placeDateCol).font = {
+    name: 'Calibri',
+    size: 9.5,
+    bold: true,
+    color: BLACK,
+  };
+
+  const sortedGroups = [...(report.signatureGroups || [])].sort((a, b) => a.order - b.order);
+  if (sortedGroups.length === 0) return;
+
+  const sigBlockRow = sigStartRow + 1;
+  const totalSlots = sortedGroups.reduce((sum, g) => sum + Math.max(1, g.slots.length), 0);
+  const colsPerSlot = totalSlots * 2 + Math.max(0, sortedGroups.length - 1) <= totalCols ? 2 : 1;
+  const gapCols =
+    totalSlots * colsPerSlot + Math.max(0, sortedGroups.length - 1) <= totalCols ? 1 : 0;
+
+  let colCursor = 1;
+  sortedGroups.forEach((grp) => {
+    if (colCursor > totalCols) return;
+    const slots = [...grp.slots].sort((a, b) => a.order - b.order);
+    const slotCount = Math.max(1, slots.length);
+    const desiredSpan = Math.max(colsPerSlot, slotCount * colsPerSlot);
+    const endCol = Math.min(totalCols, colCursor + desiredSpan - 1);
+
+    if (endCol > colCursor) {
+      ws.mergeCells(sigBlockRow, colCursor, sigBlockRow, endCol);
+    }
+    const gHeader = ws.getCell(sigBlockRow, colCursor);
+    gHeader.value = grp.label;
+    gHeader.font = { name: 'Calibri', size: 9.5, bold: true, color: BLACK };
+    gHeader.fill = HEADER_FILL;
+    gHeader.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    slots.forEach((slot, sIdx) => {
+      const slotStart = colCursor + sIdx * colsPerSlot;
+      if (slotStart > endCol) return;
+      const slotEnd = Math.min(endCol, slotStart + colsPerSlot - 1);
+      if (slotEnd > slotStart) {
+        ws.mergeCells(sigBlockRow + 1, slotStart, sigBlockRow + 1, slotEnd);
+        ws.mergeCells(sigBlockRow + 2, slotStart, sigBlockRow + 2, slotEnd);
+      }
+      const statusCell = ws.getCell(sigBlockRow + 1, slotStart);
+      statusCell.value =
+        slot.status === 'SIGNED'
+          ? `TTD Digital\n(${slot.signedAt ? slot.signedAt.slice(0, 10) : 'Sah'})`
+          : 'Menunggu TTD';
+      statusCell.font = {
+        name: 'Calibri',
+        size: 8.5,
+        italic: slot.status !== 'SIGNED',
+        color: slot.status === 'SIGNED' ? { argb: 'FF047857' } : { argb: 'FF6B7280' },
+      };
+      statusCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+      const nameCell = ws.getCell(sigBlockRow + 2, slotStart);
+      nameCell.value = `${slot.name}\n${slot.jabatan}`;
+      nameCell.font = { name: 'Calibri', size: 8.5, bold: true, color: BLACK };
+      nameCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    });
+
+    ws.getRow(sigBlockRow).height = 20;
+    ws.getRow(sigBlockRow + 1).height = 34;
+    ws.getRow(sigBlockRow + 2).height = 28;
+    applyTableOutlines(ws, sigBlockRow, sigBlockRow + 2, colCursor, endCol, sigBlockRow);
+    colCursor = endCol + 1 + gapCols;
+  });
 }
 
 const BORDER_RANK: Record<string, number> = {
@@ -373,54 +768,7 @@ export async function exportReportToExcel(report: MonthlyReport): Promise<void> 
 
     // Blok Tanda Tangan di bawah tabel
     const sigStartRow = Math.max(headerRowIdx + 2, dataEndRow + 2);
-    ws.getCell(sigStartRow, 10).value = report.placeDateText || '';
-    ws.getCell(sigStartRow, 10).font = { name: 'Calibri', size: 9.5, bold: true, color: BLACK };
-
-    const sigBlockRow = sigStartRow + 1;
-    const sortedGroups = [...report.signatureGroups].sort((a, b) => a.order - b.order);
-    let colCursor = 1;
-    sortedGroups.forEach((grp) => {
-      const span = Math.max(2, grp.slots.length * 2);
-      const endCol = Math.min(totalCols, colCursor + span - 1);
-      ws.mergeCells(sigBlockRow, colCursor, sigBlockRow, endCol);
-      const gHeader = ws.getCell(sigBlockRow, colCursor);
-      gHeader.value = grp.label;
-      gHeader.font = { name: 'Calibri', size: 9.5, bold: true, color: BLACK };
-      gHeader.fill = HEADER_FILL;
-      gHeader.alignment = { horizontal: 'center', vertical: 'middle' };
-
-      grp.slots.forEach((slot, sIdx) => {
-        const slotStart = colCursor + sIdx * 2;
-        const slotEnd = Math.min(endCol, slotStart + 1);
-        if (slotEnd > slotStart) {
-          ws.mergeCells(sigBlockRow + 1, slotStart, sigBlockRow + 1, slotEnd);
-          ws.mergeCells(sigBlockRow + 2, slotStart, sigBlockRow + 2, slotEnd);
-        }
-        const statusCell = ws.getCell(sigBlockRow + 1, slotStart);
-        statusCell.value =
-          slot.status === 'SIGNED'
-            ? `TTD Digital\n(${slot.signedAt ? slot.signedAt.slice(0, 10) : 'Sah'})`
-            : 'Menunggu TTD';
-        statusCell.font = {
-          name: 'Calibri',
-          size: 8.5,
-          italic: slot.status !== 'SIGNED',
-          color: slot.status === 'SIGNED' ? { argb: 'FF047857' } : { argb: 'FF6B7280' },
-        };
-        statusCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-
-        const nameCell = ws.getCell(sigBlockRow + 2, slotStart);
-        nameCell.value = `${slot.name}\n${slot.jabatan}`;
-        nameCell.font = { name: 'Calibri', size: 8.5, bold: true, color: BLACK };
-        nameCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      });
-
-      ws.getRow(sigBlockRow).height = 20;
-      ws.getRow(sigBlockRow + 1).height = 34;
-      ws.getRow(sigBlockRow + 2).height = 28;
-      applyTableOutlines(ws, sigBlockRow, sigBlockRow + 2, colCursor, endCol, sigBlockRow);
-      colCursor = endCol + 2;
-    });
+    appendSignatureBlockToWorksheet(ws, report, sigStartRow, totalCols);
   } else {
     const headers = [
       'No.',
@@ -454,8 +802,10 @@ export async function exportReportToExcel(report: MonthlyReport): Promise<void> 
     rows.forEach((row, idx) => {
       const rIdx = dataStartRow + idx;
       if (row.kategori !== lastCat) {
-        if (idx > 0 && rIdx - 1 > groupStartRow) {
-          ws.mergeCells(groupStartRow, 2, rIdx - 1, 2);
+        if (idx > 0) {
+          if (rIdx - 1 > groupStartRow) {
+            ws.mergeCells(groupStartRow, 2, rIdx - 1, 2);
+          }
           applyGroupRowOutlines(ws, groupStartRow, rIdx - 1, 1, totalCols);
         }
         lastCat = row.kategori;
@@ -500,6 +850,10 @@ export async function exportReportToExcel(report: MonthlyReport): Promise<void> 
     } else {
       applyTableOutlines(ws, headerRowIdx, headerRowIdx, 1, totalCols, headerRowIdx);
     }
+
+    // Blok Tanda Tangan di bawah tabel Inventaris Overhead
+    const sigStartRow = Math.max(headerRowIdx + 2, dataEndRow + 2);
+    appendSignatureBlockToWorksheet(ws, report, sigStartRow, totalCols);
   }
 
   await saveWorkbookAsXlsx(wb, `${report.documentId}_${report.period}.xlsx`);
@@ -829,7 +1183,7 @@ export async function exportRowsToExcel(
   wb.creator = 'HR SupplyHub - PT Ajinomoto Indonesia - PT Ajinex International, Mojokerto Factory';
   wb.created = new Date();
 
-  const ws = wb.addWorksheet(sheetName, {
+  const ws = wb.addWorksheet(sanitizeSheetName(sheetName), {
     pageSetup: {
       paperSize: 9 as ExcelJS.PaperSize,
       orientation: 'landscape',

@@ -76,6 +76,7 @@ export const ReportsPage: React.FC = () => {
   const [newPlaceDate, setNewPlaceDate] = useState('Mojokerto, 05 November 2026');
   const [newTplId, setNewTplId] = useState('');
   const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Confirm reset signatures dialog when editing after signing
   const [pendingRowEdit, setPendingRowEdit] = useState<{
@@ -130,8 +131,13 @@ export const ReportsPage: React.FC = () => {
 
   const handleExportPdf = async () => {
     if (!reportRef.current || !report) return;
+    const wasEditMode = editMode;
     try {
       setExportingPdf(true);
+      if (wasEditMode) {
+        setEditMode(false);
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      }
       await exportElementToA3Pdf(
         reportRef.current,
         `${report.documentId}_${report.period}.pdf`
@@ -147,27 +153,42 @@ export const ReportsPage: React.FC = () => {
         });
       }
       toast(tr('PDF A3 Landscape berhasil diunduh', 'A3 Landscape PDF downloaded'), 'success');
-    } catch {
-      toast(tr('Gagal mengekspor PDF', 'Failed to export PDF'), 'error');
+    } catch (err) {
+      console.error('[HR SupplyHub] Export A3 PDF failed:', err);
+      const detail = err instanceof Error ? err.message : String(err || '');
+      toast(
+        tr('Gagal mengekspor PDF A3', 'Failed to export A3 PDF'),
+        'error',
+        detail || tr('Silakan coba lagi atau gunakan Cetak A3.', 'Please retry or use Print A3.')
+      );
     } finally {
       setExportingPdf(false);
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!report) return;
-    exportReportToExcel(report);
-    if (user) {
-      logAction({
-        userId: user.id,
-        userName: user.name,
-        userRole: user.role,
-        action: 'EXPORT',
-        objectType: 'Ekspor Excel Laporan',
-        objectLabel: report.documentId,
-      });
+    try {
+      setExportingExcel(true);
+      await exportReportToExcel(report);
+      if (user) {
+        logAction({
+          userId: user.id,
+          userName: user.name,
+          userRole: user.role,
+          action: 'EXPORT',
+          objectType: 'Ekspor Excel Laporan',
+          objectLabel: report.documentId,
+        });
+      }
+      toast(tr('Laporan Excel berhasil diunduh', 'Excel report downloaded'), 'success');
+    } catch (err) {
+      console.error('[HR SupplyHub] Export Excel report failed:', err);
+      const detail = err instanceof Error ? err.message : String(err || '');
+      toast(tr('Gagal mengekspor Excel', 'Failed to export Excel'), 'error', detail || undefined);
+    } finally {
+      setExportingExcel(false);
     }
-    toast(tr('Laporan Excel berhasil diunduh', 'Excel report downloaded'), 'success');
   };
 
   const handleCreateReport = (e: React.FormEvent) => {
@@ -262,19 +283,19 @@ export const ReportsPage: React.FC = () => {
               type="button"
               disabled={exportingPdf || !report}
               onClick={handleExportPdf}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50 cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               {exportingPdf ? tr('Memproses PDF...', 'Processing PDF...') : tr('Ekspor PDF A3', 'Export A3 PDF')}
             </button>
             <button
               type="button"
-              disabled={!report}
+              disabled={exportingExcel || !report}
               onClick={handleExportExcel}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-50 cursor-pointer"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              {tr('Ekspor Excel', 'Export Excel')}
+              {exportingExcel ? tr('Memproses Excel...', 'Processing Excel...') : tr('Ekspor Excel', 'Export Excel')}
             </button>
           </div>
         </div>
