@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ArrowRightLeft,
   Check,
+  Clock,
   CloudUpload,
   Database,
   Download,
@@ -21,7 +22,11 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import {
+  SESSION_TIMEOUT_OPTIONS,
+  type SessionTimeoutMinutes,
+  useAuth,
+} from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useSupplyHub } from '../context/SupplyHubContext';
 import { COLOR_THEMES, useTheme } from '../context/ThemeContext';
@@ -67,7 +72,7 @@ function buildInitials(name: string): string {
 }
 
 export const SettingsPage: React.FC = () => {
-  const { user, isSuperAdmin } = useAuth();
+  const { user, isSuperAdmin, sessionTimeoutMinutes, setSessionTimeoutMinutes } = useAuth();
   const {
     store,
     isSupabaseConnected,
@@ -530,6 +535,47 @@ export const SettingsPage: React.FC = () => {
                   English
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Session Timeout & Tab-Close Auto-Logout Control */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-xs">
+            <div>
+              <div className="font-semibold text-neutral-700 dark:text-neutral-200 inline-flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-theme-primary" />
+                {tr('Batas Waktu Sesi (Auto-Logout)', 'Session Idle Timeout (Auto Sign-Out)')}
+              </div>
+              <p className="text-[11px] text-neutral-500 mt-0.5">
+                {tr(
+                  'Otomatis kembali ke Login saat tab browser ditutup atau tidak aktif sesuai durasi pilihan.',
+                  'Automatically returns to Login when the browser tab closes or remains idle.'
+                )}
+              </p>
+            </div>
+            <div className="inline-flex items-center p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 shrink-0">
+              {SESSION_TIMEOUT_OPTIONS.map((mins) => (
+                <button
+                  key={mins}
+                  type="button"
+                  onClick={() => {
+                    setSessionTimeoutMinutes(mins as SessionTimeoutMinutes);
+                    toast(
+                      tr(
+                        `Batas waktu sesi diatur ke ${mins} menit`,
+                        `Session timeout set to ${mins} minutes`
+                      ),
+                      'success'
+                    );
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg font-semibold font-mono-num whitespace-nowrap cursor-pointer ${
+                    sessionTimeoutMinutes === mins
+                      ? 'bg-white dark:bg-[#171A1F] text-neutral-900 dark:text-white shadow-sm'
+                      : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+                  }`}
+                >
+                  {mins}m
+                </button>
+              ))}
             </div>
           </div>
 

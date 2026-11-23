@@ -11,6 +11,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  Clock,
   FileSpreadsheet,
   FolderUp,
   History,
@@ -126,7 +127,14 @@ const NAV_ITEMS: NavEntry[] = [
 ];
 
 export const AppShell: React.FC = () => {
-  const { user, logout } = useAuth();
+  const {
+    user,
+    logout,
+    isTimeoutWarningOpen,
+    remainingTimeoutSeconds,
+    sessionTimeoutMinutes,
+    extendSession,
+  } = useAuth();
   const { store, markNotificationRead, markAllNotificationsRead, resetDemoData } = useSupplyHub();
   const { activePreset } = useTheme();
   const { tr } = useLanguage();
@@ -658,6 +666,72 @@ export const AppShell: React.FC = () => {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session Idle Timeout Warning Modal (60 detik sebelum keluar otomatis) */}
+      {isTimeoutWarningOpen && (
+        <div className="no-print fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#171A1F] p-6 shadow-2xl space-y-5">
+            <div className="flex items-start gap-3.5">
+              <div
+                className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
+                style={{ backgroundColor: activePreset.primary }}
+              >
+                <Clock className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-extrabold font-display">
+                  {tr('Sesi Akan Berakhir Otomatis', 'Session About to Expire')}
+                </h3>
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  {tr(
+                    `Tidak ada aktivitas terdeteksi menjelang batas ${sessionTimeoutMinutes} menit. Demi keamanan sistem HR, Anda akan dikembalikan ke halaman Login dalam:`,
+                    `No activity detected approaching the ${sessionTimeoutMinutes}-minute limit. For HR system security, you will be signed out in:`
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="py-4 rounded-xl bg-neutral-100/80 dark:bg-neutral-900/70 border border-neutral-200/80 dark:border-neutral-800 text-center">
+              <div className="text-3xl font-extrabold font-mono-num tracking-tight text-theme-primary">
+                00:{String(remainingTimeoutSeconds).padStart(2, '0')}
+              </div>
+              <div className="text-[11px] text-neutral-500 mt-1">
+                {tr('detik tersisa sebelum logout otomatis', 'seconds remaining before automatic sign-out')}
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  logout('MANUAL');
+                  navigate('/login');
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 transition cursor-pointer"
+              >
+                {tr('Keluar Sekarang', 'Sign Out Now')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  extendSession();
+                  toast(
+                    tr('Sesi diperpanjang', 'Session extended'),
+                    'success',
+                    tr(
+                      `Batas tidak aktif diatur ulang ke ${sessionTimeoutMinutes} menit.`,
+                      `Inactivity timer reset to ${sessionTimeoutMinutes} minutes.`
+                    )
+                  );
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-theme-primary text-white text-xs font-semibold transition cursor-pointer"
+              >
+                {tr('Tetap Masuk', 'Stay Signed In')}
+              </button>
             </div>
           </div>
         </div>

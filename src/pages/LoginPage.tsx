@@ -4,6 +4,7 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  Clock,
   Eye,
   EyeOff,
   KeyRound,
@@ -23,7 +24,14 @@ import { useToast } from '../context/ToastContext';
 import { getRoleLabel } from '../utils/format';
 
 export const LoginPage: React.FC = () => {
-  const { login, loginAsDemo, lockoutRemainingSeconds } = useAuth();
+  const {
+    login,
+    loginAsDemo,
+    lockoutRemainingSeconds,
+    sessionTimeoutMinutes,
+    sessionExpiredReason,
+    clearSessionExpiredReason,
+  } = useAuth();
   const { store } = useSupplyHub();
   const { activePreset } = useTheme();
   const { tr } = useLanguage();
@@ -33,7 +41,6 @@ export const LoginPage: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -51,7 +58,7 @@ export const LoginPage: React.FC = () => {
       );
       return;
     }
-    const res = login(identifier, password, rememberMe);
+    const res = login(identifier, password);
     if (!res.ok) {
       setError(res.error || tr('Gagal masuk.', 'Failed to sign in.'));
       return;
@@ -208,6 +215,33 @@ export const LoginPage: React.FC = () => {
             </p>
           </div>
 
+          {sessionExpiredReason === 'TIMEOUT' && (
+            <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-800 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                  <div className="font-bold">
+                    {tr('Sesi Berakhir Otomatis (Timeout)', 'Session Expired Automatically (Timeout)')}
+                  </div>
+                  <div className="leading-relaxed">
+                    {tr(
+                      `Anda dikembalikan ke halaman Login karena tidak ada aktivitas selama ${sessionTimeoutMinutes} menit. Silakan masuk kembali untuk melanjutkan.`,
+                      `You were returned to the sign-in screen after ${sessionTimeoutMinutes} minutes of inactivity. Please sign in again to continue.`
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={clearSessionExpiredReason}
+                aria-label={tr('Tutup pemberitahuan', 'Dismiss notice')}
+                className="p-1 rounded-lg text-amber-700 dark:text-amber-300 hover:bg-amber-200/50 dark:hover:bg-amber-900/50 shrink-0 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {lockoutRemainingSeconds > 0 && (
             <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
@@ -284,17 +318,14 @@ export const LoginPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs">
-              <label className="inline-flex items-center gap-2 cursor-pointer text-neutral-700 dark:text-neutral-300">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-neutral-300"
-                  style={{ accentColor: activePreset.primary }}
-                />
-                {tr('Ingat saya di perangkat ini', 'Remember me on this device')}
-              </label>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="inline-flex items-center gap-1.5 text-neutral-600 dark:text-neutral-400">
+                <ShieldCheck className="w-4 h-4 text-theme-primary shrink-0" />
+                {tr(
+                  `Auto-logout saat tab ditutup atau tidak aktif ${sessionTimeoutMinutes} menit`,
+                  `Auto sign-out on tab close or ${sessionTimeoutMinutes} min idle`
+                )}
+              </span>
               <button
                 type="button"
                 onClick={() => {
