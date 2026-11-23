@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRightLeft,
   Check,
@@ -12,6 +12,7 @@ import {
   FileCode2,
   Globe,
   Palette,
+  RefreshCw,
   RotateCcw,
   Save,
   Search,
@@ -76,7 +77,9 @@ export const SettingsPage: React.FC = () => {
   const {
     store,
     isSupabaseConnected,
+    syncStatus,
     syncAllToSupabase,
+    refreshFromSupabase,
     updateSettings,
     upsertUser,
     reassignUserSlots,
@@ -90,6 +93,9 @@ export const SettingsPage: React.FC = () => {
   const { toast } = useToast();
 
   const [settingsForm, setSettingsForm] = useState(store.settings);
+  useEffect(() => {
+    setSettingsForm(store.settings);
+  }, [store.settings]);
   const [userSearch, setUserSearch] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
 
@@ -107,6 +113,7 @@ export const SettingsPage: React.FC = () => {
 
   // Sync Supabase state
   const [syncingSupabase, setSyncingSupabase] = useState(false);
+  const [pullingSupabase, setPullingSupabase] = useState(false);
 
   const filteredUsers = useMemo(() => {
     const q = userSearch.trim().toLowerCase();
@@ -352,6 +359,23 @@ export const SettingsPage: React.FC = () => {
       );
     } else {
       toast(tr('Sinkronisasi Supabase gagal', 'Supabase sync failed'), 'error', res.error);
+    }
+  };
+
+  const handlePullFromSupabase = async () => {
+    setPullingSupabase(true);
+    const ok = await refreshFromSupabase();
+    setPullingSupabase(false);
+    if (ok) {
+      toast(
+        tr('Data terbaru berhasil dimuat dari Supabase', 'Latest data loaded from Supabase'),
+        'success'
+      );
+    } else {
+      toast(
+        tr('Gagal memuat data dari Supabase', 'Failed to load data from Supabase'),
+        'error'
+      );
     }
   };
 
@@ -943,19 +967,48 @@ export const SettingsPage: React.FC = () => {
               </p>
             </div>
             {isSupabaseConnected && (
-              <button
-                type="button"
-                disabled={syncingSupabase}
-                onClick={handlePushToSupabase}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover disabled:opacity-60 text-white text-xs font-semibold shrink-0 transition cursor-pointer"
-              >
-                <CloudUpload className="w-4 h-4" />
-                {syncingSupabase
-                  ? tr('Menyinkronkan...', 'Syncing...')
-                  : tr('Sinkronkan Data, Foto & Dokumen ke Supabase', 'Sync Data, Photos & Docs to Supabase')}
-              </button>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={pullingSupabase}
+                  onClick={handlePullFromSupabase}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 hover:border-theme-primary disabled:opacity-60 text-xs font-semibold transition cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${pullingSupabase ? 'animate-spin' : ''}`} />
+                  {pullingSupabase
+                    ? tr('Memuat...', 'Loading...')
+                    : tr('Muat Ulang dari Database', 'Reload from Database')}
+                </button>
+                <button
+                  type="button"
+                  disabled={syncingSupabase}
+                  onClick={handlePushToSupabase}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-theme-primary bg-theme-primary-hover disabled:opacity-60 text-white text-xs font-semibold transition cursor-pointer"
+                >
+                  <CloudUpload className="w-4 h-4" />
+                  {syncingSupabase
+                    ? tr('Menyinkronkan...', 'Syncing...')
+                    : tr('Sinkronkan Penuh ke Supabase', 'Full Sync to Supabase')}
+                </button>
+              </div>
             )}
           </div>
+
+          {isSupabaseConnected && syncStatus.lastError && (
+            <div className="p-3 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/70 dark:bg-red-950/30 text-xs text-red-700 dark:text-red-300 flex items-center justify-between gap-3">
+              <span>
+                {tr('Sinkronisasi otomatis terakhir mengalami kendala:', 'Last automatic sync encountered an issue:')}{' '}
+                <strong className="font-mono-num">{syncStatus.lastError}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={handlePushToSupabase}
+                className="px-2.5 py-1 rounded-lg bg-red-600 text-white font-semibold shrink-0 cursor-pointer"
+              >
+                {tr('Coba Lagi', 'Retry')}
+              </button>
+            </div>
+          )}
 
           <div className="grid sm:grid-cols-3 gap-3 text-xs">
             <div className="p-3.5 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/70 dark:bg-[#0F1114] space-y-1">

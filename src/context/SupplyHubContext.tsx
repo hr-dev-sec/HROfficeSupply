@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type {
   AppNotification,
   AuditLogEntry,
@@ -29,13 +29,25 @@ import type {
   WorkflowStage,
 } from '../types';
 import { supplyHubRepository } from '../repositories';
+import type { SyncResult } from '../repositories/types';
 import { deleteDocumentFromStorage, uploadDataUrlToStorage } from '../services/mediaStorageService';
 import { computeDocHash, formatPeriodLong, formatPeriodShort, getNextPeriod, getPrevPeriod } from '../utils/format';
+import { useLanguage } from './LanguageContext';
+import { useToast } from './ToastContext';
+
+export interface SupabaseSyncStatus {
+  state: 'idle' | 'syncing' | 'synced' | 'error';
+  pendingCount: number;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+}
 
 interface SupplyHubContextValue {
   store: SupplyHubStore;
   isSupabaseConnected: boolean;
-  syncAllToSupabase: () => Promise<{ ok: boolean; error?: string }>;
+  syncStatus: SupabaseSyncStatus;
+  syncAllToSupabase: () => Promise<SyncResult>;
+  refreshFromSupabase: () => Promise<boolean>;
   // Reset & Backup
   resetDemoData: (actor?: User) => void;
   exportBackupJson: () => string;
@@ -210,47 +222,210 @@ function computeStageFromGroups(groups: SignatureGroup[]): WorkflowStage {
 }
 
 export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { tr } = useLanguage();
+  const { toast } = useToast();
   const [store, setStore] = useState<SupplyHubStore>(() => supplyHubRepository.loadStore());
+  const storeRef = useRef<SupplyHubStore>(store);
+  storeRef.current = store;
+
   const isSupabaseConnected = Boolean(supplyHubRepository.isRemoteEnabled?.());
 
+  const [syncStatus, setSyncStatus] = useState<SupabaseSyncStatus>({
+    state: isSupabaseConnected ? 'synced' : 'idle',
+    pendingCount: 0,
+    lastSyncedAt: null,
+    lastError: null,
+  });
+
+  const syncChainRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSyncCountRef = useRef(0);
+  const lastLocalWriteAtRef = useRef(0);
+  const trRef = useRef(tr);
+  trRef.current = tr;
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+
+  const enqueueRemoteTask = useCallback(
+    (task: () => Promise<SyncResult>) => {
+      if (!isSupabaseConnected) return;
+      pendingSyncCountRef.current += 1;
+      setSyncStatus((prev) => ({
+        ...prev,
+        state: 'syncing',
+        pendingCount: pendingSyncCountRef.current,
+      }));
+
+      syncChainRef.current = syncChainRef.current
+        .then(async () => {
+          let result = await task();
+          if (!result.ok) {
+            // Retry otomatis 1x setelah 1,5 detik jika gangguan jaringan sesaat
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+            result = await task();
+          }
+
+          pendingSyncCountRef.current = Math.max(0, pendingSyncCountRef.current - 1);
+          const nowIso = new Date().toISOString();
+
+          if (result.ok) {
+            lastLocalWriteAtRef.current = Date.now();
+            setSyncStatus({
+              state: pendingSyncCountRef.current > 0 ? 'syncing' : 'synced',
+              pendingCount: pendingSyncCountRef.current,
+              lastSyncedAt: nowIso,
+              lastError: null,
+            });
+          } else {
+            const errMsg = result.error || 'Unknown database sync error';
+            setSyncStatus((prev) => ({
+              state: 'error',
+              pendingCount: pendingSyncCountRef.current,
+              lastSyncedAt: prev.lastSyncedAt,
+              lastError: errMsg,
+            }));
+            toastRef.current(
+              trRef.current(
+                'Sinkronisasi otomatis ke database gagal',
+                'Automatic database sync failed'
+              ),
+              'error',
+              errMsg
+            );
+          }
+        })
+        .catch((err) => {
+          pendingSyncCountRef.current = Math.max(0, pendingSyncCountRef.current - 1);
+          const errMsg = err instanceof Error ? err.message : 'Unexpected sync error';
+          setSyncStatus((prev) => ({
+            state: 'error',
+            pendingCount: pendingSyncCountRef.current,
+            lastSyncedAt: prev.lastSyncedAt,
+            lastError: errMsg,
+          }));
+        });
+    },
+    [isSupabaseConnected]
+  );
+
+  const refreshFromSupabase = useCallback(async (): Promise<boolean> => {
+    if (!supplyHubRepository.hydrateFromRemote || !isSupabaseConnected) return false;
+    const remoteStore = await supplyHubRepository.hydrateFromRemote();
+    if (remoteStore) {
+      storeRef.current = remoteStore;
+      setStore(remoteStore);
+      setSyncStatus((prev) => ({
+        ...prev,
+        state: pendingSyncCountRef.current > 0 ? 'syncing' : 'synced',
+        lastSyncedAt: new Date().toISOString(),
+        lastError: null,
+      }));
+      return true;
+    }
+    return false;
+  }, [isSupabaseConnected]);
+
+  // Initial hydrate from Supabase
   useEffect(() => {
-    if (!supplyHubRepository.hydrateFromRemote) return;
+    if (!supplyHubRepository.hydrateFromRemote || !isSupabaseConnected) return;
     let active = true;
     supplyHubRepository.hydrateFromRemote().then((remoteStore) => {
-      if (active && remoteStore) {
+      if (active && remoteStore && pendingSyncCountRef.current === 0) {
+        storeRef.current = remoteStore;
         setStore(remoteStore);
+        setSyncStatus((prev) => ({
+          ...prev,
+          state: 'synced',
+          lastSyncedAt: new Date().toISOString(),
+          lastError: null,
+        }));
       }
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [isSupabaseConnected]);
 
-  const commit = useCallback((updater: (prev: SupplyHubStore) => SupplyHubStore) => {
-    setStore((prev) => {
-      const next = updater(prev);
-      supplyHubRepository.saveStore(next);
-      if (supplyHubRepository.syncStoreDelta) {
-        void supplyHubRepository.syncStoreDelta(prev, next);
-      }
-      return next;
+  // Realtime multi-tab / multi-device subscription (debounced, skips self-echoes)
+  useEffect(() => {
+    if (!supplyHubRepository.subscribeToRemoteChanges || !isSupabaseConnected) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const unsubscribe = supplyHubRepository.subscribeToRemoteChanges(() => {
+      // Abaikan pantulan perubahan dari sesi lokal sendiri atau saat penulisan sedang berjalan
+      if (pendingSyncCountRef.current > 0) return;
+      if (Date.now() - lastLocalWriteAtRef.current < 2000) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (pendingSyncCountRef.current === 0 && Date.now() - lastLocalWriteAtRef.current >= 2000) {
+          void refreshFromSupabase();
+        }
+      }, 650);
     });
-  }, []);
 
-  const syncAllToSupabase = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
-    if (!supplyHubRepository.pushFullStoreToRemote) {
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+    };
+  }, [isSupabaseConnected, refreshFromSupabase]);
+
+  // Cegah penutupan tab mendadak tepat saat transaksi penulisan database masih berlangsung
+  useEffect(() => {
+    if (!isSupabaseConnected) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (pendingSyncCountRef.current > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isSupabaseConnected]);
+
+  const commit = useCallback(
+    (updater: (prev: SupplyHubStore) => SupplyHubStore) => {
+      const prev = storeRef.current;
+      const next = updater(prev);
+      if (next === prev) return;
+      storeRef.current = next;
+      supplyHubRepository.saveStore(next);
+      setStore(next);
+      if (supplyHubRepository.syncStoreDelta && isSupabaseConnected) {
+        enqueueRemoteTask(() => supplyHubRepository.syncStoreDelta!(prev, next));
+      }
+    },
+    [enqueueRemoteTask, isSupabaseConnected]
+  );
+
+  const syncAllToSupabase = useCallback(async (): Promise<SyncResult> => {
+    if (!supplyHubRepository.pushFullStoreToRemote || !isSupabaseConnected) {
       return {
         ok: false,
         error: 'Koneksi Supabase belum aktif. Isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY pada environment.',
       };
     }
-    const result = await supplyHubRepository.pushFullStoreToRemote(store);
+    // Tunggu antrean penulisan delta yang sedang berjalan selesai lebih dulu
+    await syncChainRef.current;
+    const result = await supplyHubRepository.pushFullStoreToRemote(storeRef.current);
     if (result.ok) {
-      // Muat ulang cache lokal yang mungkin sudah mengganti DataURL foto -> URL Supabase Storage
-      setStore(supplyHubRepository.loadStore());
+      lastLocalWriteAtRef.current = Date.now();
+      const refreshed = supplyHubRepository.loadStore();
+      storeRef.current = refreshed;
+      setStore(refreshed);
+      setSyncStatus({
+        state: 'synced',
+        pendingCount: pendingSyncCountRef.current,
+        lastSyncedAt: new Date().toISOString(),
+        lastError: null,
+      });
+    } else {
+      setSyncStatus((prev) => ({
+        ...prev,
+        state: 'error',
+        lastError: result.error || 'Sync failed',
+      }));
     }
     return result;
-  }, [store]);
+  }, [isSupabaseConnected]);
 
   const makeAudit = (entry: Omit<AuditLogEntry, 'id' | 'timestamp'>): AuditLogEntry => ({
     ...entry,
@@ -285,14 +460,22 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ];
         supplyHubRepository.saveStore(fresh);
       }
+      storeRef.current = fresh;
       setStore(fresh);
+      if (isSupabaseConnected) {
+        const remotePush =
+          supplyHubRepository.replaceFullStoreOnRemote || supplyHubRepository.pushFullStoreToRemote;
+        if (remotePush) {
+          enqueueRemoteTask(() => remotePush.call(supplyHubRepository, fresh));
+        }
+      }
     },
-    []
+    [enqueueRemoteTask, isSupabaseConnected]
   );
 
   const exportBackupJson = useCallback(() => {
-    return JSON.stringify(store, null, 2);
-  }, [store]);
+    return JSON.stringify(storeRef.current, null, 2);
+  }, []);
 
   const importBackupJson = useCallback(
     (raw: string, actor: User) => {
@@ -309,9 +492,17 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ...imported.auditLogs,
       ];
       supplyHubRepository.saveStore(imported);
+      storeRef.current = imported;
       setStore(imported);
+      if (isSupabaseConnected) {
+        const remotePush =
+          supplyHubRepository.replaceFullStoreOnRemote || supplyHubRepository.pushFullStoreToRemote;
+        if (remotePush) {
+          enqueueRemoteTask(() => remotePush.call(supplyHubRepository, imported));
+        }
+      }
     },
-    []
+    [enqueueRemoteTask, isSupabaseConnected]
   );
 
   const upsertUser = useCallback(
@@ -1124,9 +1315,13 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       const prefixCode =
         jenis === 'OFFICE_SUPPLIES' ? 'OS' : jenis === 'OVERHEAD_GOODS' ? 'OG' : 'INV';
-      const documentId = `DOC-HR-${prefixCode}-${period.replace('-', '')}-${String(
-        store.reports.length + 1
-      ).padStart(2, '0')}`;
+      const existingDocIds = new Set(store.reports.map((r) => r.documentId));
+      let seq = store.reports.length + 1;
+      let documentId = `DOC-HR-${prefixCode}-${period.replace('-', '')}-${String(seq).padStart(2, '0')}`;
+      while (existingDocIds.has(documentId)) {
+        seq += 1;
+        documentId = `DOC-HR-${prefixCode}-${period.replace('-', '')}-${String(seq).padStart(2, '0')}`;
+      }
       const title =
         jenis === 'OFFICE_SUPPLIES'
           ? 'LIST PENGECHEKAN BARANG OFFICE SUPPLIES'
@@ -2513,7 +2708,9 @@ export const SupplyHubProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       value={{
         store,
         isSupabaseConnected,
+        syncStatus,
         syncAllToSupabase,
+        refreshFromSupabase,
         resetDemoData,
         exportBackupJson,
         importBackupJson,

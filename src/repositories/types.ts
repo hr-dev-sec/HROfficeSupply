@@ -1,5 +1,10 @@
 import type { SupplyHubStore } from '../types';
 
+export interface SyncResult {
+  ok: boolean;
+  error?: string;
+}
+
 export interface ISupplyHubRepository {
   loadStore(): SupplyHubStore;
   saveStore(store: SupplyHubStore): void;
@@ -8,6 +13,8 @@ export interface ISupplyHubRepository {
   importJson(rawJson: string): SupplyHubStore;
   isRemoteEnabled?(): boolean;
   hydrateFromRemote?(): Promise<SupplyHubStore | null>;
-  syncStoreDelta?(prev: SupplyHubStore, next: SupplyHubStore): Promise<void>;
-  pushFullStoreToRemote?(store: SupplyHubStore): Promise<{ ok: boolean; error?: string }>;
+  syncStoreDelta?(prev: SupplyHubStore, next: SupplyHubStore): Promise<SyncResult>;
+  pushFullStoreToRemote?(store: SupplyHubStore): Promise<SyncResult>;
+  replaceFullStoreOnRemote?(store: SupplyHubStore): Promise<SyncResult>;
+  subscribeToRemoteChanges?(onChange: (table: string) => void): () => void;
 }

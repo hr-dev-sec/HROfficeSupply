@@ -29,7 +29,7 @@ import type {
   User,
 } from '../types';
 import { LocalStorageSupplyHubRepository } from './localStorageRepository';
-import type { ISupplyHubRepository } from './types';
+import type { ISupplyHubRepository, SyncResult } from './types';
 
 function chunkArray<T>(arr: T[], size = 200): T[][] {
   const out: T[][] = [];
@@ -57,6 +57,47 @@ async function deleteByIds(table: string, ids: string[]) {
       throw new Error(`Supabase delete [${table}] gagal: ${error.message}`);
     }
   }
+}
+
+async function deleteOrphanIds(table: string, keepIds: Set<string>, filterCol?: { col: string; val: string }) {
+  if (!supabase) return;
+  let query = supabase.from(table).select('id');
+  if (filterCol) {
+    query = query.eq(filterCol.col, filterCol.val);
+  }
+  const { data, error } = await query;
+  if (error || !data) return;
+  const orphanIds = (data as Array<{ id: string }>)
+    .map((r) => String(r.id))
+    .filter((id) => !keepIds.has(id));
+  await deleteByIds(table, orphanIds);
+}
+
+async function uploadReportSignaturesIfNeeded(report: MonthlyReport): Promise<MonthlyReport> {
+  if (!isSupabaseConfigured || !supabase) return report;
+  let changed = false;
+  const nextGroups = await Promise.all(
+    report.signatureGroups.map(async (g) => ({
+      ...g,
+      slots: await Promise.all(
+        g.slots.map(async (s) => {
+          if (s.signatureImageUrl && s.signatureImageUrl.startsWith('data:')) {
+            const uploaded = await uploadDataUrlToStorage(
+              s.signatureImageUrl,
+              'signatures',
+              `${report.id}-${s.id}`
+            );
+            if (uploaded !== s.signatureImageUrl) {
+              changed = true;
+              return { ...s, signatureImageUrl: uploaded };
+            }
+          }
+          return s;
+        })
+      ),
+    }))
+  );
+  return changed ? { ...report, signatureGroups: nextGroups } : report;
 }
 
 /**
@@ -113,13 +154,37 @@ async function prepareStoreMediaForCloud(store: SupplyHubStore): Promise<SupplyH
     })
   );
 
+  const reports = await Promise.all(store.reports.map(uploadReportSignaturesIfNeeded));
+
   return {
     ...store,
     users,
     items,
     inventories,
     documents,
+    reports,
   };
+}
+
+interface RefIdSets {
+  userIds: Set<string>;
+  templateIds: Set<string>;
+  reportIds: Set<string>;
+}
+
+function buildRefIdSets(store: SupplyHubStore): RefIdSets {
+  return {
+    userIds: new Set(store.users.map((u) => u.id)),
+    templateIds: new Set(store.templates.map((t) => t.id)),
+    reportIds: new Set(store.reports.map((r) => r.id)),
+  };
+}
+
+function safeFk(id: string | undefined | null, validIds?: Set<string>): string | null {
+  const clean = id?.trim();
+  if (!clean) return null;
+  if (validIds && !validIds.has(clean)) return null;
+  return clean;
 }
 
 // ============================================================================
@@ -161,8 +226,8 @@ const toItemRow = (i: SupplyItem) => ({
   code_item: i.codeItem,
   item_name: i.itemName,
   uom: i.uom,
-  min_stock: i.minStock,
-  current_stock: i.currentStock,
+  min_stock: Math.max(0, Math.round(Number(i.minStock) || 0)),
+  current_stock: Math.max(0, Math.round(Number(i.currentStock) || 0)),
   location: i.location,
   notes: i.notes,
   photo_url: i.photoUrl ?? null,
@@ -190,7 +255,7 @@ const fromItemRow = (r: Record<string, unknown>): SupplyItem => ({
   updatedAt: String(r.updated_at),
 });
 
-const toTxRow = (t: StockTransaction) => ({
+const toTxRow = (t: StockTransaction, refs?: RefIdSets) => ({
   id: t.id,
   item_id: t.itemId,
   jenis: t.jenis,
@@ -198,10 +263,10 @@ const toTxRow = (t: StockTransaction) => ({
   item_name: t.itemName,
   uom: t.uom,
   type: t.type,
-  qty: t.qty,
+  qty: Math.round(Number(t.qty) || 0),
   tx_date: t.date,
   period: t.period,
-  recorded_by_user_id: t.recordedByUserId || null,
+  recorded_by_user_id: safeFk(t.recordedByUserId, refs?.userIds),
   recorded_by_name: t.recordedByName,
   note: t.note,
   reference_no: t.referenceNo ?? null,
@@ -226,14 +291,14 @@ const fromTxRow = (r: Record<string, unknown>): StockTransaction => ({
   createdAt: String(r.created_at),
 });
 
-const toOpnameSessionRow = (o: OpnameSession) => ({
+const toOpnameSessionRow = (o: OpnameSession, refs?: RefIdSets) => ({
   id: o.id,
   period: o.period,
   jenis: o.jenis,
   status: o.status,
-  created_by_user_id: o.createdByUserId || null,
+  created_by_user_id: safeFk(o.createdByUserId, refs?.userIds),
   created_by_name: o.createdByName,
-  approved_by_user_id: o.approvedByUserId ?? null,
+  approved_by_user_id: safeFk(o.approvedByUserId, refs?.userIds),
   approved_by_name: o.approvedByName ?? null,
   approved_at: o.approvedAt ?? null,
   rejection_note: o.rejectionNote ?? null,
@@ -276,7 +341,7 @@ const fromTemplateRow = (r: Record<string, unknown>): SignatureTemplate => ({
   groups: (r.groups as SignatureTemplate['groups']) || [],
 });
 
-const toReportRow = (rep: MonthlyReport) => ({
+const toReportRow = (rep: MonthlyReport, refs?: RefIdSets) => ({
   id: rep.id,
   document_id: rep.documentId,
   doc_hash: rep.docHash,
@@ -291,7 +356,7 @@ const toReportRow = (rep: MonthlyReport) => ({
   check_rows: rep.checkRows ?? null,
   inventory_rows: rep.inventoryRows ?? null,
   signature_groups: rep.signatureGroups,
-  template_id: rep.templateId || null,
+  template_id: safeFk(rep.templateId, refs?.templateIds),
   locked: rep.locked,
   version: rep.version,
   versions: rep.versions,
@@ -330,7 +395,7 @@ const toInventoryRow = (inv: OverheadInventoryItem) => ({
   prefix: inv.prefix,
   kategori: inv.kategori,
   item_name: inv.itemName,
-  qty: inv.qty,
+  qty: Math.max(0, Math.round(Number(inv.qty) || 0)),
   uom: inv.uom,
   location: inv.location,
   condition: inv.condition,
@@ -493,20 +558,20 @@ const fromForecastSubRow = (r: Record<string, unknown>): RollingForecastSubmissi
   note: String(r.note ?? ''),
 });
 
-const toDocumentRow = (d: SystemDocument) => ({
+const toDocumentRow = (d: SystemDocument, refs?: RefIdSets) => ({
   id: d.id,
   title: d.title,
   category: d.category,
   period: d.period,
   linked_module: d.linkedModule,
-  linked_report_id: d.linkedReportId ?? null,
+  linked_report_id: safeFk(d.linkedReportId, refs?.reportIds),
   file_name: d.fileName,
   file_type: d.fileType,
   file_size: d.fileSize,
   file_url: d.fileUrl,
   storage_path: d.storagePath ?? null,
   notes: d.notes,
-  uploaded_by_user_id: d.uploadedByUserId || null,
+  uploaded_by_user_id: safeFk(d.uploadedByUserId, refs?.userIds),
   uploaded_by_name: d.uploadedByName,
   uploaded_at: d.uploadedAt,
   updated_at: d.updatedAt,
@@ -531,12 +596,12 @@ const fromDocumentRow = (r: Record<string, unknown>): SystemDocument => ({
   updatedAt: String(r.updated_at),
 });
 
-const toNotifRow = (n: AppNotification) => ({
+const toNotifRow = (n: AppNotification, refs?: RefIdSets) => ({
   id: n.id,
   title: n.title,
   message: n.message,
   type: n.type,
-  target_user_id: n.targetUserId ?? null,
+  target_user_id: safeFk(n.targetUserId, refs?.userIds),
   target_roles: n.targetRoles ?? null,
   link_to: n.linkTo,
   read: n.read,
@@ -597,11 +662,7 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
   }
 
   resetDemoData(): SupplyHubStore {
-    const fresh = this.cache.resetDemoData();
-    if (this.isRemoteEnabled()) {
-      void this.pushFullStoreToRemote(fresh);
-    }
-    return fresh;
+    return this.cache.resetDemoData();
   }
 
   exportJson(): string {
@@ -609,11 +670,7 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
   }
 
   importJson(rawJson: string): SupplyHubStore {
-    const imported = this.cache.importJson(rawJson);
-    if (this.isRemoteEnabled()) {
-      void this.pushFullStoreToRemote(imported);
-    }
-    return imported;
+    return this.cache.importJson(rawJson);
   }
 
   async hydrateFromRemote(): Promise<SupplyHubStore | null> {
@@ -728,7 +785,7 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
               (settingsData.instructions_inventory as string[]) || fallback.settings.instructionsInventory,
             reminderEarlyMonthDay: Number(settingsData.reminder_early_month_day ?? 5),
             reminderOpnameDay: Number(settingsData.reminder_opname_day ?? 28),
-            language: 'id',
+            language: settingsData.language === 'en' ? 'en' : 'id',
           }
         : fallback.settings;
 
@@ -745,7 +802,7 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
       const localCached = this.cache.loadStore();
       const rfMeta = rfMetaRes.data as Record<string, unknown> | null;
       const hydratedEmployees: HrEmployee[] =
-        !employeesRes.error && employeesRes.data && employeesRes.data.length > 0
+        !employeesRes.error && Array.isArray(employeesRes.data)
           ? (employeesRes.data as Record<string, unknown>[]).map(fromEmployeeRow)
           : localCached.employees && localCached.employees.length > 0
           ? localCached.employees
@@ -818,7 +875,7 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
     }
   }
 
-  async pushFullStoreToRemote(rawStore: SupplyHubStore): Promise<{ ok: boolean; error?: string }> {
+  async pushFullStoreToRemote(rawStore: SupplyHubStore): Promise<SyncResult> {
     if (!supabase || !isSupabaseConfigured) {
       return { ok: false, error: 'VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY belum dikonfigurasi.' };
     }
@@ -826,6 +883,7 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
     try {
       const store = await prepareStoreMediaForCloud(rawStore);
       this.cache.saveStore(store);
+      const refs = buildRefIdSets(store);
 
       // 1. Settings & Master Data
       await upsertInBatches('company_settings', [
@@ -861,17 +919,17 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
 
       // 3. Master Items & Transactions
       await upsertInBatches('supply_items', store.items.map(toItemRow));
-      await upsertInBatches('stock_transactions', store.transactions.map(toTxRow));
+      await upsertInBatches('stock_transactions', store.transactions.map((t) => toTxRow(t, refs)));
 
       // 4. Opnames & Opname Lines
-      await upsertInBatches('opname_sessions', store.opnames.map(toOpnameSessionRow));
+      await upsertInBatches('opname_sessions', store.opnames.map((o) => toOpnameSessionRow(o, refs)));
       await upsertInBatches(
         'opname_lines',
         store.opnames.flatMap(toOpnameLineRows)
       );
 
       // 5. Monthly Reports
-      await upsertInBatches('monthly_reports', store.reports.map(toReportRow));
+      await upsertInBatches('monthly_reports', store.reports.map((r) => toReportRow(r, refs)));
 
       // 6. Overhead Inventories & Mutations
       await upsertInBatches('overhead_inventories', store.inventories.map(toInventoryRow));
@@ -910,8 +968,8 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
       );
 
       // 9. Arsip Dokumen, Notifikasi & Audit Logs
-      await upsertInBatches('system_documents', (store.documents || []).map(toDocumentRow));
-      await upsertInBatches('app_notifications', store.notifications.map(toNotifRow));
+      await upsertInBatches('system_documents', (store.documents || []).map((d) => toDocumentRow(d, refs)));
+      await upsertInBatches('app_notifications', store.notifications.map((n) => toNotifRow(n, refs)));
       await upsertInBatches('audit_logs', store.auditLogs.map(toAuditRow));
 
       return { ok: true };
@@ -922,10 +980,40 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
     }
   }
 
-  async syncStoreDelta(prev: SupplyHubStore, next: SupplyHubStore): Promise<void> {
-    if (!supabase || !isSupabaseConfigured) return;
+  async replaceFullStoreOnRemote(rawStore: SupplyHubStore): Promise<SyncResult> {
+    const pushRes = await this.pushFullStoreToRemote(rawStore);
+    if (!pushRes.ok || !supabase || !isSupabaseConfigured) return pushRes;
 
     try {
+      // Hapus baris yatim (child tables dulu, lalu parent tables agar FK aman)
+      await deleteOrphanIds('system_documents', new Set((rawStore.documents || []).map((d) => d.id)));
+      await deleteOrphanIds('app_notifications', new Set(rawStore.notifications.map((n) => n.id)));
+      await deleteOrphanIds('audit_logs', new Set(rawStore.auditLogs.map((a) => a.id)));
+      await deleteOrphanIds('rolling_forecast_submissions', new Set(rawStore.rollingForecast.submissions.map((s) => s.id)), { col: 'fiscal_year_id', val: 'FY2026' });
+      await deleteOrphanIds('rolling_forecast_rows', new Set(rawStore.rollingForecast.rows.map((r) => r.id)), { col: 'fiscal_year_id', val: 'FY2026' });
+      await deleteOrphanIds('item_requests', new Set(rawStore.itemRequests.map((r) => r.id)));
+      await deleteOrphanIds('hr_employees', new Set((rawStore.employees || []).map((e) => e.id)));
+      await deleteOrphanIds('overhead_inventories', new Set(rawStore.inventories.map((i) => i.id)));
+      await deleteOrphanIds('monthly_reports', new Set(rawStore.reports.map((r) => r.id)));
+      await deleteOrphanIds('opname_sessions', new Set(rawStore.opnames.map((o) => o.id)));
+      await deleteOrphanIds('stock_transactions', new Set(rawStore.transactions.map((t) => t.id)));
+      await deleteOrphanIds('supply_items', new Set(rawStore.items.map((i) => i.id)));
+      await deleteOrphanIds('signature_templates', new Set(rawStore.templates.map((t) => t.id)));
+      await deleteOrphanIds('app_users', new Set(rawStore.users.map((u) => u.id)));
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gagal menyelaraskan penghapusan data lama di Supabase.';
+      console.error(msg, err);
+      return { ok: false, error: msg };
+    }
+  }
+
+  async syncStoreDelta(prev: SupplyHubStore, next: SupplyHubStore): Promise<SyncResult> {
+    if (!supabase || !isSupabaseConfigured) return { ok: true };
+
+    try {
+      const refs = buildRefIdSets(next);
+
       if (prev.settings !== next.settings) {
         await upsertInBatches('company_settings', [
           {
@@ -958,66 +1046,124 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
       }
 
       if (prev.users !== next.users) {
+        const prevMap = new Map(prev.users.map((u) => [u.id, u]));
         const nextIds = new Set(next.users.map((u) => u.id));
         const deletedIds = prev.users.filter((u) => !nextIds.has(u.id)).map((u) => u.id);
-        await upsertInBatches('app_users', next.users.map(toUserRow));
+        // Hapus user yang dihapus lebih dulu agar tidak bentrok UNIQUE username/email
         await deleteByIds('app_users', deletedIds);
+
+        const changedUsers = await Promise.all(
+          next.users
+            .filter((u) => prevMap.get(u.id) !== u)
+            .map(async (u) => {
+              if (u.savedSignatureDataUrl && u.savedSignatureDataUrl.startsWith('data:')) {
+                const uploaded = await uploadDataUrlToStorage(u.savedSignatureDataUrl, 'signatures', u.id);
+                return { ...u, savedSignatureDataUrl: uploaded };
+              }
+              return u;
+            })
+        );
+        await upsertInBatches('app_users', changedUsers.map(toUserRow));
       }
 
       if (prev.templates !== next.templates) {
+        const prevMap = new Map(prev.templates.map((t) => [t.id, t]));
         const nextIds = new Set(next.templates.map((t) => t.id));
+        const changed = next.templates.filter((t) => prevMap.get(t.id) !== t);
         const deletedIds = prev.templates.filter((t) => !nextIds.has(t.id)).map((t) => t.id);
-        await upsertInBatches('signature_templates', next.templates.map(toTemplateRow));
+        await upsertInBatches('signature_templates', changed.map(toTemplateRow));
         await deleteByIds('signature_templates', deletedIds);
       }
 
       if (prev.items !== next.items) {
         const prevMap = new Map(prev.items.map((i) => [i.id, i]));
-        const changed = next.items.filter((i) => prevMap.get(i.id) !== i);
+        const nextIds = new Set(next.items.map((i) => i.id));
+        const deletedIds = prev.items.filter((i) => !nextIds.has(i.id)).map((i) => i.id);
+        const changed = await Promise.all(
+          next.items
+            .filter((i) => prevMap.get(i.id) !== i)
+            .map(async (it) => {
+              if (it.photoUrl && it.photoUrl.startsWith('data:')) {
+                const uploaded = await uploadDataUrlToStorage(it.photoUrl, 'items', it.id);
+                return { ...it, photoUrl: uploaded };
+              }
+              return it;
+            })
+        );
         await upsertInBatches('supply_items', changed.map(toItemRow));
+        await deleteByIds('supply_items', deletedIds);
       }
 
       if (prev.transactions !== next.transactions) {
-        const prevIds = new Set(prev.transactions.map((t) => t.id));
-        const added = next.transactions.filter((t) => !prevIds.has(t.id));
-        await upsertInBatches('stock_transactions', added.map(toTxRow));
+        const prevMap = new Map(prev.transactions.map((t) => [t.id, t]));
+        const nextIds = new Set(next.transactions.map((t) => t.id));
+        const changed = next.transactions.filter((t) => prevMap.get(t.id) !== t);
+        const deletedIds = prev.transactions.filter((t) => !nextIds.has(t.id)).map((t) => t.id);
+        await upsertInBatches('stock_transactions', changed.map((t) => toTxRow(t, refs)));
+        await deleteByIds('stock_transactions', deletedIds);
       }
 
       if (prev.opnames !== next.opnames) {
         const prevMap = new Map(prev.opnames.map((o) => [o.id, o]));
+        const nextIds = new Set(next.opnames.map((o) => o.id));
         const changed = next.opnames.filter((o) => prevMap.get(o.id) !== o);
-        await upsertInBatches('opname_sessions', changed.map(toOpnameSessionRow));
+        const deletedIds = prev.opnames.filter((o) => !nextIds.has(o.id)).map((o) => o.id);
+        await upsertInBatches('opname_sessions', changed.map((o) => toOpnameSessionRow(o, refs)));
         await upsertInBatches('opname_lines', changed.flatMap(toOpnameLineRows));
+        await deleteByIds('opname_sessions', deletedIds);
       }
 
       if (prev.reports !== next.reports) {
         const prevMap = new Map(prev.reports.map((r) => [r.id, r]));
-        const changed = next.reports.filter((r) => prevMap.get(r.id) !== r);
-        await upsertInBatches('monthly_reports', changed.map(toReportRow));
+        const nextIds = new Set(next.reports.map((r) => r.id));
+        const deletedIds = prev.reports.filter((r) => !nextIds.has(r.id)).map((r) => r.id);
+        const changed = await Promise.all(
+          next.reports
+            .filter((r) => prevMap.get(r.id) !== r)
+            .map(uploadReportSignaturesIfNeeded)
+        );
+        await upsertInBatches('monthly_reports', changed.map((r) => toReportRow(r, refs)));
+        await deleteByIds('monthly_reports', deletedIds);
       }
 
       if (prev.inventories !== next.inventories) {
         const prevMap = new Map(prev.inventories.map((i) => [i.id, i]));
-        const changed = next.inventories.filter((i) => prevMap.get(i.id) !== i);
+        const nextIds = new Set(next.inventories.map((i) => i.id));
+        const deletedIds = prev.inventories.filter((i) => !nextIds.has(i.id)).map((i) => i.id);
+        const changed = await Promise.all(
+          next.inventories
+            .filter((i) => prevMap.get(i.id) !== i)
+            .map(async (inv) => {
+              if (inv.photoUrl && inv.photoUrl.startsWith('data:')) {
+                const uploaded = await uploadDataUrlToStorage(inv.photoUrl, 'inventories', inv.id);
+                return { ...inv, photoUrl: uploaded };
+              }
+              return inv;
+            })
+        );
         await upsertInBatches('overhead_inventories', changed.map(toInventoryRow));
         await upsertInBatches('overhead_inventory_mutations', changed.flatMap(toInventoryMutationRows));
+        await deleteByIds('overhead_inventories', deletedIds);
       }
 
       if (prev.employees !== next.employees) {
-        try {
-          const nextIds = new Set((next.employees || []).map((e) => e.id));
-          const deletedIds = (prev.employees || []).filter((e) => !nextIds.has(e.id)).map((e) => e.id);
-          await upsertInBatches('hr_employees', (next.employees || []).map(toEmployeeRow));
-          await deleteByIds('hr_employees', deletedIds);
-        } catch (empErr) {
-          console.warn('Sinkronisasi hr_employees menunggu migrasi tabel di Supabase:', empErr);
-        }
+        const prevList = prev.employees || [];
+        const nextList = next.employees || [];
+        const prevMap = new Map(prevList.map((e) => [e.id, e]));
+        const nextIds = new Set(nextList.map((e) => e.id));
+        const changed = nextList.filter((e) => prevMap.get(e.id) !== e);
+        const deletedIds = prevList.filter((e) => !nextIds.has(e.id)).map((e) => e.id);
+        await deleteByIds('hr_employees', deletedIds);
+        await upsertInBatches('hr_employees', changed.map(toEmployeeRow));
       }
 
       if (prev.itemRequests !== next.itemRequests) {
         const prevMap = new Map(prev.itemRequests.map((r) => [r.id, r]));
+        const nextIds = new Set(next.itemRequests.map((r) => r.id));
         const changed = next.itemRequests.filter((r) => prevMap.get(r.id) !== r);
+        const deletedIds = prev.itemRequests.filter((r) => !nextIds.has(r.id)).map((r) => r.id);
         await upsertItemRequestsSafe(changed);
+        await deleteByIds('item_requests', deletedIds);
       }
 
       if (prev.rollingForecast !== next.rollingForecast) {
@@ -1035,8 +1181,13 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
         ]);
 
         const prevRowMap = new Map(prev.rollingForecast.rows.map((r) => [r.id, r]));
+        const nextRowIds = new Set(next.rollingForecast.rows.map((r) => r.id));
         const changedRows = next.rollingForecast.rows.filter((r) => prevRowMap.get(r.id) !== r);
+        const deletedRowIds = prev.rollingForecast.rows
+          .filter((r) => !nextRowIds.has(r.id))
+          .map((r) => r.id);
         await upsertInBatches('rolling_forecast_rows', changedRows.map(toForecastRow));
+        await deleteByIds('rolling_forecast_rows', deletedRowIds);
 
         const prevSubIds = new Set(prev.rollingForecast.submissions.map((s) => s.id));
         const addedSubs = next.rollingForecast.submissions.filter((s) => !prevSubIds.has(s.id));
@@ -1044,18 +1195,42 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
       }
 
       if (prev.documents !== next.documents) {
-        const prevDocMap = new Map((prev.documents || []).map((d) => [d.id, d]));
-        const nextDocIds = new Set((next.documents || []).map((d) => d.id));
-        const changedDocs = (next.documents || []).filter((d) => prevDocMap.get(d.id) !== d);
-        const deletedDocIds = (prev.documents || []).filter((d) => !nextDocIds.has(d.id)).map((d) => d.id);
-        await upsertInBatches('system_documents', changedDocs.map(toDocumentRow));
+        const prevDocs = prev.documents || [];
+        const nextDocs = next.documents || [];
+        const prevDocMap = new Map(prevDocs.map((d) => [d.id, d]));
+        const nextDocIds = new Set(nextDocs.map((d) => d.id));
+        const deletedDocIds = prevDocs.filter((d) => !nextDocIds.has(d.id)).map((d) => d.id);
+        const changedDocs = await Promise.all(
+          nextDocs
+            .filter((d) => prevDocMap.get(d.id) !== d)
+            .map(async (doc) => {
+              if (doc.fileUrl && doc.fileUrl.startsWith('data:')) {
+                const uploaded = await uploadDocumentDataUrlToStorage(
+                  doc.fileUrl,
+                  doc.category,
+                  doc.id,
+                  doc.fileName
+                );
+                return {
+                  ...doc,
+                  fileUrl: uploaded.fileUrl,
+                  storagePath: uploaded.storagePath ?? doc.storagePath,
+                };
+              }
+              return doc;
+            })
+        );
+        await upsertInBatches('system_documents', changedDocs.map((d) => toDocumentRow(d, refs)));
         await deleteByIds('system_documents', deletedDocIds);
       }
 
       if (prev.notifications !== next.notifications) {
         const prevMap = new Map(prev.notifications.map((n) => [n.id, n]));
+        const nextIds = new Set(next.notifications.map((n) => n.id));
         const changed = next.notifications.filter((n) => prevMap.get(n.id) !== n);
-        await upsertInBatches('app_notifications', changed.map(toNotifRow));
+        const deletedIds = prev.notifications.filter((n) => !nextIds.has(n.id)).map((n) => n.id);
+        await upsertInBatches('app_notifications', changed.map((n) => toNotifRow(n, refs)));
+        await deleteByIds('app_notifications', deletedIds);
       }
 
       if (prev.auditLogs !== next.auditLogs) {
@@ -1063,8 +1238,31 @@ export class SupabaseSupplyHubRepository implements ISupplyHubRepository {
         const added = next.auditLogs.filter((a) => !prevIds.has(a.id));
         await upsertInBatches('audit_logs', added.map(toAuditRow));
       }
+
+      return { ok: true };
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gagal sinkronisasi otomatis ke Supabase.';
       console.error('Gagal sinkronisasi delta ke Supabase:', err);
+      return { ok: false, error: msg };
     }
+  }
+
+  subscribeToRemoteChanges(onChange: (table: string) => void): () => void {
+    if (!supabase || !isSupabaseConfigured) return () => {};
+    const client = supabase;
+    const channel = client
+      .channel(`hr-supplyhub-live-${Math.random().toString(36).slice(2, 8)}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public' },
+        (payload) => {
+          onChange(String(payload.table || 'public'));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void client.removeChannel(channel);
+    };
   }
 }
