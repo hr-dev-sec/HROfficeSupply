@@ -439,7 +439,13 @@ export interface AssistantVisualData {
 }
 
 export interface AssistantActionProposal {
-  type: 'RECORD_PAKAI' | 'UPDATE_ROLLING_FORECAST' | 'CREATE_DRAFT_REPORT' | 'SEND_REMINDER';
+  type:
+    | 'RECORD_PAKAI'
+    | 'RECORD_TERIMA'
+    | 'APPROVE_REQUEST'
+    | 'UPDATE_ROLLING_FORECAST'
+    | 'CREATE_DRAFT_REPORT'
+    | 'SEND_REMINDER';
   title: string;
   description: string;
   payloadJson: string;
@@ -453,4 +459,8 @@ export interface AssistantMessage {
   timestamp: string;
   visualData?: AssistantVisualData | null;
   actionProposal?: AssistantActionProposal | null;
+  followUpSuggestions?: string[];
+  isError?: boolean;
+  retryPrompt?: string;
+  sourceMode?: 'GEMINI' | 'LOCAL';
 }
