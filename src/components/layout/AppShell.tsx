@@ -23,7 +23,9 @@ import {
   History,
   LayoutDashboard,
   LogOut,
+  Maximize2,
   Menu,
+  Minimize2,
   Package,
   PenTool,
   RotateCcw,
@@ -164,12 +166,94 @@ export const AppShell: React.FC = () => {
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isFullscreenMode, setIsFullscreenMode] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dbMenuOpen, setDbMenuOpen] = useState(false);
   const [dbBusy, setDbBusy] = useState<'test' | 'pull' | 'push' | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const nativeFsEnteredRef = React.useRef(false);
+
+  const getNativeFullscreenElement = (): Element | null => {
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      msFullscreenElement?: Element | null;
+    };
+    return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? doc.msFullscreenElement ?? null;
+  };
+
+  const toggleFullscreenMode = async () => {
+    const doc = document as Document & {
+      webkitExitFullscreen?: () => Promise<void> | void;
+      msExitFullscreen?: () => Promise<void> | void;
+    };
+    const rootEl = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+      msRequestFullscreen?: () => Promise<void> | void;
+    };
+
+    if (!isFullscreenMode) {
+      setIsFullscreenMode(true);
+      setMobileOpen(false);
+      setDbMenuOpen(false);
+      setNotifOpen(false);
+      setProfileOpen(false);
+      try {
+        if (!getNativeFullscreenElement()) {
+          if (rootEl.requestFullscreen) {
+            await rootEl.requestFullscreen();
+            nativeFsEnteredRef.current = true;
+          } else if (rootEl.webkitRequestFullscreen) {
+            await rootEl.webkitRequestFullscreen();
+            nativeFsEnteredRef.current = true;
+          } else if (rootEl.msRequestFullscreen) {
+            await rootEl.msRequestFullscreen();
+            nativeFsEnteredRef.current = true;
+          }
+        }
+      } catch {
+        // Fallback smoothly to full-viewport workspace expansion when browser/iframe blocks native Fullscreen API
+        nativeFsEnteredRef.current = false;
+      }
+    } else {
+      setIsFullscreenMode(false);
+      nativeFsEnteredRef.current = false;
+      try {
+        if (getNativeFullscreenElement()) {
+          if (doc.exitFullscreen) {
+            await doc.exitFullscreen();
+          } else if (doc.webkitExitFullscreen) {
+            await doc.webkitExitFullscreen();
+          } else if (doc.msExitFullscreen) {
+            await doc.msExitFullscreen();
+          }
+        }
+      } catch {
+        // Ignore browser exit errors
+      }
+    }
+  };
+
+  // Sync UI state when user exits native browser fullscreen (e.g. via Esc or F11)
+  useEffect(() => {
+    const handleFsChange = () => {
+      const activeNative = Boolean(getNativeFullscreenElement());
+      if (activeNative) {
+        nativeFsEnteredRef.current = true;
+        setIsFullscreenMode(true);
+      } else if (nativeFsEnteredRef.current) {
+        nativeFsEnteredRef.current = false;
+        setIsFullscreenMode(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -178,7 +262,7 @@ export const AppShell: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // Ctrl+K global shortcut
+  // Ctrl+K global shortcut & Escape handler
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -186,15 +270,20 @@ export const AppShell: React.FC = () => {
         setSearchOpen((v) => !v);
       }
       if (e.key === 'Escape') {
-        setSearchOpen(false);
-        setDbMenuOpen(false);
-        setNotifOpen(false);
-        setProfileOpen(false);
+        if (searchOpen || dbMenuOpen || notifOpen || profileOpen || mobileOpen) {
+          setSearchOpen(false);
+          setDbMenuOpen(false);
+          setNotifOpen(false);
+          setProfileOpen(false);
+          setMobileOpen(false);
+        } else if (isFullscreenMode && !getNativeFullscreenElement()) {
+          setIsFullscreenMode(false);
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [searchOpen, dbMenuOpen, notifOpen, profileOpen, mobileOpen, isFullscreenMode]);
 
   const visibleNav = useMemo(() => {
     if (!user) return [];
@@ -345,19 +434,27 @@ export const AppShell: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-theme-canvas text-[#1F2328] dark:text-[#F1F3F5] transition-colors duration-300">
-      {/* Mobile / Zoomed-in Drawer Backdrop */}
+      {/* Mobile / Fullscreen Drawer Backdrop */}
       {mobileOpen && (
         <div
-          className="no-print fixed inset-0 z-40 bg-black/50 xl:hidden"
+          className={`no-print fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px] ${
+            isFullscreenMode ? '' : 'xl:hidden'
+          }`}
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <aside
-        className={`no-print fixed xl:sticky top-0 left-0 z-50 h-screen flex flex-col border-r border-neutral-200/80 dark:border-neutral-800 bg-white/95 dark:bg-[#171A1F]/95 backdrop-blur-md transition-all duration-200 shrink-0 ${
-          collapsed ? 'w-[76px]' : 'w-[252px]'
-        } ${mobileOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}`}
+        className={`no-print fixed top-0 left-0 z-50 h-screen flex flex-col border-r border-neutral-200/80 dark:border-neutral-800 bg-white/95 dark:bg-[#171A1F]/95 backdrop-blur-md transition-all duration-200 shrink-0 ${
+          collapsed && !isFullscreenMode ? 'w-[76px]' : 'w-[252px]'
+        } ${
+          isFullscreenMode
+            ? mobileOpen
+              ? 'translate-x-0 shadow-2xl'
+              : '-translate-x-full'
+            : `xl:sticky ${mobileOpen ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'}`
+        }`}
       >
         <div className="h-16 px-4 flex items-center justify-between border-b border-neutral-200/70 dark:border-neutral-800 shrink-0">
           <button
@@ -370,24 +467,26 @@ export const AppShell: React.FC = () => {
               alt="Logo Ajinomoto"
               className="h-8 w-8 object-contain shrink-0 rounded-lg bg-white p-0.5"
             />
-            {!collapsed && (
+            {(!collapsed || isFullscreenMode) && (
               <span className="font-display font-bold text-base tracking-tight truncate">
                 HR SupplyHub
               </span>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            className="hidden xl:inline-flex p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            aria-label={collapsed ? tr('Perluas sidebar', 'Expand sidebar') : tr('Ciutkan sidebar', 'Collapse sidebar')}
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
+          {!isFullscreenMode && (
+            <button
+              type="button"
+              onClick={() => setCollapsed((c) => !c)}
+              className="hidden xl:inline-flex p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              aria-label={collapsed ? tr('Perluas sidebar', 'Expand sidebar') : tr('Ciutkan sidebar', 'Collapse sidebar')}
+            >
+              {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="xl:hidden p-1.5 rounded-lg text-neutral-500"
+            className={`${isFullscreenMode ? 'inline-flex' : 'xl:hidden'} p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer`}
             aria-label={tr('Tutup menu', 'Close menu')}
           >
             <X className="w-4 h-4" />
@@ -398,22 +497,23 @@ export const AppShell: React.FC = () => {
           {visibleNav.map((item) => {
             const Icon = item.icon;
             const navLabel = tr(item.label, item.labelEn);
+            const showCollapsed = collapsed && !isFullscreenMode;
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 onClick={() => setMobileOpen(false)}
-                title={collapsed ? navLabel : undefined}
+                title={showCollapsed ? navLabel : undefined}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
                     isActive
                       ? 'bg-theme-primary text-white shadow-sm'
                       : 'text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800/80'
-                  } ${collapsed ? 'justify-center px-2' : ''}`
+                  } ${showCollapsed ? 'justify-center px-2' : ''}`
                 }
               >
                 <Icon className="w-[18px] h-[18px] shrink-0" />
-                {!collapsed && <span className="truncate">{navLabel}</span>}
+                {!showCollapsed && <span className="truncate">{navLabel}</span>}
               </NavLink>
             );
           })}
@@ -422,7 +522,7 @@ export const AppShell: React.FC = () => {
         <div className="p-3 border-t border-neutral-200/70 dark:border-neutral-800">
           <div
             className={`flex items-center gap-2.5 p-2 rounded-xl bg-neutral-100/80 dark:bg-neutral-800/60 ${
-              collapsed ? 'justify-center' : ''
+              collapsed && !isFullscreenMode ? 'justify-center' : ''
             }`}
           >
             <div
@@ -431,7 +531,7 @@ export const AppShell: React.FC = () => {
             >
               {user.avatarInitials}
             </div>
-            {!collapsed && (
+            {(!collapsed || isFullscreenMode) && (
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold truncate">{user.name}</p>
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
@@ -451,10 +551,13 @@ export const AppShell: React.FC = () => {
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="xl:hidden p-2 rounded-xl border border-neutral-200 dark:border-neutral-700 shrink-0"
+              className={`${
+                isFullscreenMode ? 'inline-flex' : 'xl:hidden inline-flex'
+              } items-center justify-center w-9 h-9 rounded-xl border border-neutral-200/90 dark:border-neutral-700 bg-white/85 dark:bg-[#171A1F] hover:border-theme-primary hover:text-theme-primary transition-colors cursor-pointer shrink-0`}
               aria-label={tr('Buka navigasi', 'Open navigation')}
+              title={tr('Buka menu navigasi tab', 'Open tab navigation menu')}
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-4 h-4" />
             </button>
             <div className="min-w-0">
               <div className="text-[11px] text-neutral-500 dark:text-neutral-400 hidden sm:block truncate">
@@ -466,7 +569,7 @@ export const AppShell: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <div className="hidden 2xl:flex items-center gap-1.5 pr-1">
               <AjiuLogoBadge size="sm" />
               <HseLogoBadge size="sm" />
@@ -476,9 +579,9 @@ export const AppShell: React.FC = () => {
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-xs text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="flex items-center gap-2 h-9 px-2.5 sm:px-3 rounded-xl border border-neutral-200/90 dark:border-neutral-700 bg-white/85 dark:bg-[#171A1F] text-xs text-neutral-500 hover:border-neutral-300 dark:hover:border-neutral-600 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Search className="w-4 h-4 text-neutral-400" />
+              <Search className="w-4 h-4 text-neutral-400 shrink-0" />
               <span className="hidden lg:inline">
                 {tr('Cari item, kode, laporan...', 'Search items, codes, reports...')}
               </span>
@@ -487,8 +590,49 @@ export const AppShell: React.FC = () => {
               </kbd>
             </button>
 
+            <span className="hidden md:block h-5 w-px bg-neutral-200/90 dark:bg-neutral-800 mx-0.5" />
+
             {/* Theme Palette, Language & Dark Mode Controls */}
             <AppearanceControls compact />
+
+            {/* Universal Dashboard Full Screen Toggle (Works Across All Tabs) */}
+            <button
+              type="button"
+              onClick={toggleFullscreenMode}
+              aria-label={
+                isFullscreenMode
+                  ? tr('Keluar dari mode layar penuh', 'Exit full screen mode')
+                  : tr('Aktifkan mode layar penuh untuk semua tab', 'Enable full screen mode for all tabs')
+              }
+              title={
+                isFullscreenMode
+                  ? tr('Keluar Layar Penuh (Esc)', 'Exit Full Screen (Esc)')
+                  : tr('Mode Layar Penuh (Berfungsi di Semua Tab)', 'Full Screen Mode (Works on All Tabs)')
+              }
+              className={`inline-flex items-center justify-center gap-1.5 h-9 rounded-xl border text-[11px] font-semibold transition-all duration-200 cursor-pointer shrink-0 whitespace-nowrap ${
+                isFullscreenMode
+                  ? 'px-3 bg-theme-primary bg-theme-primary-hover text-white border-transparent shadow-sm'
+                  : 'w-9 2xl:w-auto 2xl:px-3 border-neutral-200/90 dark:border-neutral-700 bg-white/85 dark:bg-[#171A1F] text-neutral-700 dark:text-neutral-200 hover:border-theme-primary hover:text-theme-primary hover:bg-neutral-50 dark:hover:bg-neutral-800'
+              }`}
+            >
+              {isFullscreenMode ? (
+                <>
+                  <Minimize2 className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">
+                    {tr('Keluar Full Screen', 'Exit Full Screen')}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4 shrink-0" />
+                  <span className="hidden 2xl:inline">
+                    {tr('Full Screen', 'Full Screen')}
+                  </span>
+                </>
+              )}
+            </button>
+
+            <span className="hidden sm:block h-5 w-px bg-neutral-200/90 dark:bg-neutral-800 mx-0.5" />
 
             {/* Database Connection Icon & Quick Control Popover */}
             <div className="relative">
@@ -508,7 +652,7 @@ export const AppShell: React.FC = () => {
                       )
                     : tr('Mode Penyimpanan Lokal — klik untuk detail', 'Local Storage Mode — click for details')
                 }
-                className="relative flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
+                className="relative flex items-center gap-1.5 h-9 px-2.5 rounded-xl border border-neutral-200/90 dark:border-neutral-700 bg-white/85 dark:bg-[#171A1F] text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
               >
                 <span className="relative inline-flex">
                   <Database
@@ -669,7 +813,7 @@ export const AppShell: React.FC = () => {
                   setDbMenuOpen(false);
                 }}
                 aria-label={tr('Notifikasi', 'Notifications')}
-                className="relative p-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                className="relative w-9 h-9 flex items-center justify-center rounded-xl border border-neutral-200/90 dark:border-neutral-700 bg-white/85 dark:bg-[#171A1F] text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
@@ -747,10 +891,10 @@ export const AppShell: React.FC = () => {
                   setNotifOpen(false);
                   setDbMenuOpen(false);
                 }}
-                className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-[#171A1F] hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                className="flex items-center gap-2 h-9 pl-1.5 pr-2.5 rounded-xl border border-neutral-200/90 dark:border-neutral-700 bg-white/85 dark:bg-[#171A1F] hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
               >
                 <div
-                  className="w-7 h-7 rounded-lg text-white text-xs font-bold flex items-center justify-center"
+                  className="w-6 h-6 rounded-lg text-white text-[11px] font-bold flex items-center justify-center shrink-0"
                   style={{ backgroundColor: activePreset.primary }}
                 >
                   {user.avatarInitials}
@@ -810,7 +954,13 @@ export const AppShell: React.FC = () => {
         </header>
 
         {/* Page Body */}
-        <main className="flex-1 p-3 sm:p-5 lg:p-6 xl:p-7 max-w-[1920px] w-full mx-auto min-w-0 print:p-0 print:max-w-none">
+        <main
+          className={`flex-1 w-full mx-auto min-w-0 print:p-0 print:max-w-none transition-all duration-200 ${
+            isFullscreenMode
+              ? 'p-4 sm:p-6 lg:p-7 max-w-none'
+              : 'p-3 sm:p-5 lg:p-6 xl:p-7 max-w-[1920px]'
+          }`}
+        >
           <Outlet />
         </main>
       </div>
