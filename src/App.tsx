@@ -14,6 +14,7 @@ import { AssistantPage } from './pages/AssistantPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DocumentsPage } from './pages/DocumentsPage';
+import { ExecutiveBriefingPage } from './pages/ExecutiveBriefingPage';
 import { ForecastPage } from './pages/ForecastPage';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
@@ -58,6 +59,7 @@ export default function App() {
                 <Route path="/app" element={<AppShell />}>
                   <Route index element={<Navigate to="/app/dashboard" replace />} />
                   <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="executive-briefing" element={<ExecutiveBriefingPage />} />
                   <Route
                     path="items"
                     element={

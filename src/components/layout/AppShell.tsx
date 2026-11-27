@@ -28,6 +28,7 @@ import {
   Minimize2,
   Package,
   PenTool,
+  Presentation,
   RotateCcw,
   Search,
   Settings,
@@ -54,6 +55,12 @@ interface NavEntry {
 
 const NAV_ITEMS: NavEntry[] = [
   { to: '/app/dashboard', label: 'Dashboard', labelEn: 'Dashboard', icon: LayoutDashboard },
+  {
+    to: '/app/executive-briefing',
+    label: 'Report to Management',
+    labelEn: 'Report to Management',
+    icon: Presentation,
+  },
   {
     to: '/app/items',
     label: 'Master Item',
